@@ -9,11 +9,14 @@ general:
   master_name: "сэр"  # Как обращается к тебе
 
 # LLM — мозг Джарвиса
+# Провайдеры: omniroute / openai / groq / ollama
+# OmniRoute (omniroute.online) — 160+ провайдеров через один endpoint, есть бесплатные модели
 llm:
-  provider: "ollama"  # ollama / openai / groq
-  model: "llama3.1"  # Модель для Ollama
-  base_url: "http://localhost:11434/v1"  # URL Ollama API
-  api_key: ""  # Для OpenAI/Groq
+  provider: "omniroute"  # omniroute / openai / groq / ollama
+  model: "gpt-4o-mini"  # Модель (любая OpenAI-совместимая)
+  base_url: "http://localhost:20128/v1"  # Локальный OmniRoute
+  # base_url: "https://cloud.omniroute.online/v1"  # Или облачный
+  api_key: ""  # API-ключ (если нужен)
   temperature: 0.7
   max_tokens: 2048
   system_prompt: |
@@ -25,11 +28,13 @@ llm:
     Если тебя просят что-то сделать — делай, а не просто объясняй как.
 
 # Голосовой ввод (STT)
+# google — бесплатно, нужен интернет
+# faster-whisper — локально, нужен pip install faster-whisper
 stt:
-  engine: "faster-whisper"  # faster-whisper / google
-  model: "base"  # tiny / base / small / medium / large-v3
+  engine: "google"  # google / faster-whisper
+  model: "base"  # tiny / base / small / medium / large-v3 (для faster-whisper)
   language: "ru"
-  device: "cpu"  # cpu / cuda
+  device: "cpu"  # cpu / cuda (для faster-whisper)
 
 # Голосовой вывод (TTS)
 tts:

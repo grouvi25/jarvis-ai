@@ -23,7 +23,7 @@
 - **Управление десктопом** — запускает программы, выполняет команды, горячие клавиши
 - **Отправка сообщений** — пишет в Telegram от твоего имени
 - **Авто-переподключение интернета** — сам переподключает WiFi и проходит captive portal (идеально для общаг)
-- **Любой LLM** — Ollama (бесплатно, локально), OpenAI, Groq, любой OpenAI-совместимый API
+- **Любой LLM через API** — [OmniRoute](https://omniroute.online/) (160+ провайдеров, авто-фоллбэк, бесплатные модели), OpenAI, Groq, Ollama
 - **Расширяемость** — легко добавлять свои скиллы
 
 ## Быстрый старт
@@ -39,22 +39,27 @@ cd jarvis-ai
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Установи зависимости
+# Установи базовые зависимости (лёгкие, без GPU)
 pip install -e .
 
-# Для клонирования голоса (нужна GPU):
-pip install -e ".[xtts]"
-
-# Установи Playwright браузер
-playwright install chromium
+# Дополнительно (опционально):
+pip install -e ".[telegram]"   # Отправка сообщений в Telegram
+pip install -e ".[browser]"    # Управление браузером
+pip install -e ".[desktop]"    # Управление десктопом
+pip install -e ".[voice]"      # Голосовой режим (Whisper + wake word)
+pip install -e ".[all]"        # Всё сразу
 ```
 
-### 2. Установи LLM (Ollama — бесплатно)
+### 2. Установи [OmniRoute](https://omniroute.online/) (бесплатный AI-шлюз)
 
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1
+npm install -g omniroute
+omniroute
+# Откроется дашборд — добавь свои API-ключи от провайдеров (OpenAI, Anthropic, Google и т.д.)
+# OmniRoute сам роутит запросы с авто-фоллбэком
 ```
+
+OmniRoute — это локальный прокси на `localhost:20128/v1`. 160+ провайдеров, сжатие токенов, авто-фоллбэк между моделями. Бесплатные модели доступны из коробки.
 
 ### 3. Настрой конфиг
 
@@ -83,11 +88,19 @@ jarvis
 ### LLM (мозг)
 
 ```yaml
+# OmniRoute (рекомендуется — бесплатный AI-шлюз)
 llm:
-  provider: "ollama"        # ollama / openai / groq
-  model: "llama3.1"         # Модель
-  base_url: "http://localhost:11434/v1"
-  api_key: ""               # Для OpenAI/Groq
+  provider: "omniroute"
+  model: "gpt-4o-mini"  # любая модель из твоих провайдеров
+  base_url: "http://localhost:20128/v1"  # локальный OmniRoute
+  # base_url: "https://cloud.omniroute.online/v1"  # или облачный
+
+# Или напрямую к провайдеру (без OmniRoute):
+# llm:
+#   provider: "openai"
+#   model: "gpt-4o-mini"
+#   base_url: "https://api.openai.com/v1"
+#   api_key: "sk-..."
 ```
 
 ### Голос
@@ -98,8 +111,7 @@ tts:
   edge_voice: "ru-RU-DmitryNeural"  # Мужской русский голос
 
 stt:
-  engine: "faster-whisper"
-  model: "base"             # tiny/base/small/medium/large-v3
+  engine: "google"          # google (бесплатно, нужен инет) / faster-whisper (локально)
   language: "ru"
 ```
 
@@ -240,11 +252,12 @@ brain.register_skill(MySkill())
 | Компонент | Минимум | Рекомендуется |
 |-----------|---------|---------------|
 | Python | 3.10+ | 3.12+ |
-| RAM | 4 GB | 16 GB |
-| GPU | Не нужна | NVIDIA 6+ GB VRAM |
+| RAM | 2 GB | 4 GB |
+| GPU | Не нужна | Не нужна (всё через API) |
 | ОС | Linux | Ubuntu 22.04+ |
+| Интернет | Нужен (для API) | Нужен |
 
-**Без GPU**: edge-tts + Whisper tiny/base + маленькая LLM через Ollama.
+**Ноутбук?** Без проблем! Всё тяжёлое работает через API (OpenRouter/OpenAI/Groq). Твой комп только шлёт запросы и играет аудио.
 
 ## Лицензия
 

@@ -15,9 +15,9 @@ LOCAL_CONFIG = PROJECT_ROOT / "config" / "local.yaml"
 
 @dataclass
 class LLMConfig:
-    provider: str = "ollama"
-    model: str = "llama3.1"
-    base_url: str = "http://localhost:11434/v1"
+    provider: str = "omniroute"
+    model: str = "gpt-4o-mini"
+    base_url: str = "http://localhost:20128/v1"
     api_key: str = ""
     temperature: float = 0.7
     max_tokens: int = 2048
@@ -26,7 +26,7 @@ class LLMConfig:
 
 @dataclass
 class STTConfig:
-    engine: str = "faster-whisper"
+    engine: str = "google"
     model: str = "base"
     language: str = "ru"
     device: str = "cpu"

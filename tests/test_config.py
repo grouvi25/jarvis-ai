@@ -9,7 +9,7 @@ def test_load_default_config() -> None:
     assert isinstance(config, JarvisConfig)
     assert config.language == "ru"
     assert "джарвис" in config.wake_words
-    assert config.llm.provider == "ollama"
+    assert config.llm.provider == "omniroute"
     assert config.stt.language == "ru"
     assert config.tts.engine == "edge-tts"
 
@@ -20,7 +20,7 @@ def test_config_defaults() -> None:
     assert config.language == "ru"
     assert config.name == "Джарвис"
     assert config.master_name == "сэр"
-    assert config.llm.model == "llama3.1"
+    assert config.llm.model == "gpt-4o-mini"
     assert config.internet.check_interval == 300
 
 
