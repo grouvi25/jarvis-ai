@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "J.A.R.V.I.S. — автономный AI-ассистент с голосовым управлением, контролем десктопа и русским языком"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "grouvi25" }]
 
 dependencies = [
@@ -47,6 +47,9 @@ dev = [
 
 [project.scripts]
 jarvis = "jarvis.main:main"
+
+[tool.setuptools.packages.find]
+include = ["jarvis*"]
 
 [tool.ruff]
 line-length = 100
