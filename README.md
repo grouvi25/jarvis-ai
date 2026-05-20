@@ -20,11 +20,19 @@
 - **Голосовое управление** — скажи "Джарвис" и он слушает. Распознаёт русский и английский (Whisper)
 - **Голос Джарвиса** — клонирование голоса через XTTS v2 или edge-tts на русском
 - **Управление браузером** — открывает сайты, гуглит, заполняет формы (Playwright)
-- **Управление десктопом** — запускает программы, выполняет команды, горячие клавиши
-- **Отправка сообщений** — пишет в Telegram от твоего имени
+- **Управление десктопом** — запускает программы, выполняет команды, горячие клавиши, громкость
+- **Отправка сообщений** — пишет в Telegram. Говоришь "напиши моей девушке" — он найдёт контакт и отправит
+- **Контакты** — база контактов с метками (девушка, мама, друг). Больше никаких chat_id — только имена
 - **Авто-переподключение интернета** — сам переподключает WiFi и проходит captive portal (идеально для общаг)
+- **Погода** — "Джарвис, какая погода в Москве?" (бесплатно через wttr.in)
+- **Таймеры** — "Поставь таймер на 5 минут — чай готов"
+- **Заметки** — "Запомни: купить молоко". Сохраняются между сессиями
+- **Системная информация** — время, дата, батарея, CPU, диск, RAM
+- **Файлы** — найти файл, прочитать, открыть, показать папку
+- **Медиа контроль** — play/pause/next/volume через playerctl
+- **Память** — помнит разговоры между перезапусками
+- **Плагины** — свои скиллы через файлы в `~/.jarvis/plugins/`
 - **Любой LLM через API** — [OmniRoute](https://omniroute.online/) (160+ провайдеров, авто-фоллбэк, бесплатные модели), OpenAI, Groq, Ollama
-- **Расширяемость** — легко добавлять свои скиллы
 
 ## Быстрый старт
 
@@ -79,6 +87,12 @@ jarvis --voice
 
 # Автоопределение
 jarvis
+
+# Очистить историю разговоров
+jarvis --clear-history
+
+# Версия
+jarvis --version
 ```
 
 ## Конфигурация
@@ -204,14 +218,22 @@ crontab -e
 |--------|----------|
 | `jarvis/core/brain.py` | LLM-мозг с function calling |
 | `jarvis/core/event_bus.py` | Асинхронная шина событий |
-| `jarvis/core/config.py` | Конфигурация из YAML |
+| `jarvis/core/config.py` | Конфигурация из YAML + .env |
+| `jarvis/core/memory.py` | Память — история и контакты |
 | `jarvis/voice/listener.py` | STT через faster-whisper |
 | `jarvis/voice/speaker.py` | TTS через edge-tts / XTTS v2 |
 | `jarvis/voice/wake_word.py` | Детектор wake word |
 | `jarvis/skills/messenger.py` | Отправка сообщений в Telegram |
+| `jarvis/skills/contacts.py` | Контакты с метками |
 | `jarvis/skills/browser.py` | Управление браузером (Playwright) |
 | `jarvis/skills/desktop.py` | Управление десктопом |
 | `jarvis/skills/internet.py` | Авто-переподключение интернета |
+| `jarvis/skills/weather.py` | Погода через wttr.in |
+| `jarvis/skills/timer.py` | Таймеры и напоминания |
+| `jarvis/skills/notes.py` | Заметки с поиском |
+| `jarvis/skills/system_info.py` | Системная информация |
+| `jarvis/skills/file_manager.py` | Работа с файлами |
+| `jarvis/skills/media.py` | Управление медиа |
 
 ## Создание своих скиллов
 
@@ -242,10 +264,17 @@ class MySkill(Skill):
         return "Результат"
 ```
 
-Зарегистрируй в `main.py`:
+**Вариант 1:** Зарегистрируй в `main.py`:
 ```python
 brain.register_skill(MySkill())
 ```
+
+**Вариант 2:** Как плагин — сохрани файл в `~/.jarvis/plugins/my_skill.py`:
+```python
+def register(brain, config, event_bus, memory):
+    brain.register_skill(MySkill())
+```
+Плагины загружаются автоматически при запуске.
 
 ## Требования
 
@@ -257,7 +286,22 @@ brain.register_skill(MySkill())
 | ОС | Linux | Ubuntu 22.04+ |
 | Интернет | Нужен (для API) | Нужен |
 
-**Ноутбук?** Без проблем! Всё тяжёлое работает через API (OpenRouter/OpenAI/Groq). Твой комп только шлёт запросы и играет аудио.
+**Ноутбук?** Без проблем! Всё тяжёлое работает через API (OmniRoute/OpenAI/Groq). Твой комп только шлёт запросы и играет аудио.
+
+## Авто-запуск при включении компа
+
+```bash
+# Скопируй сервис
+mkdir -p ~/.config/systemd/user/
+cp scripts/jarvis.service ~/.config/systemd/user/
+
+# Включи авто-запуск
+systemctl --user enable jarvis.service
+systemctl --user start jarvis.service
+
+# Проверить статус
+systemctl --user status jarvis.service
+```
 
 ## Лицензия
 

@@ -9,6 +9,7 @@ from openai import AsyncOpenAI
 
 from jarvis.core.config import JarvisConfig
 from jarvis.core.event_bus import Event, EventBus, EventType
+from jarvis.core.memory import Memory
 from jarvis.skills.base import Skill
 from jarvis.utils.logger import log
 
@@ -16,12 +17,15 @@ from jarvis.utils.logger import log
 class Brain:
     """LLM-мозг Джарвиса. Понимает запросы и вызывает скиллы."""
 
-    def __init__(self, config: JarvisConfig, event_bus: EventBus) -> None:
+    def __init__(
+        self, config: JarvisConfig, event_bus: EventBus, memory: Memory | None = None,
+    ) -> None:
         self.config = config
         self.event_bus = event_bus
-        self.conversation_history: list[dict[str, str]] = []
+        self.memory = memory or Memory()
+        self.conversation_history: list[dict[str, Any]] = self.memory.get_history()
         self.skills: dict[str, Skill] = {}
-        self.max_history = 20
+        self.max_history = 50
 
         llm = config.llm
         self.client = AsyncOpenAI(
@@ -149,6 +153,7 @@ class Brain:
                 reply = message.content or ""
 
             self.conversation_history.append({"role": "assistant", "content": reply})
+            self.memory.save_history(self.conversation_history)
 
             await self.event_bus.emit(Event(
                 type=EventType.LLM_RESPONSE,
