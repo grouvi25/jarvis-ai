@@ -15,9 +15,9 @@ LOCAL_CONFIG = PROJECT_ROOT / "config" / "local.yaml"
 
 @dataclass
 class LLMConfig:
-    provider: str = "openrouter"
-    model: str = "google/gemini-2.0-flash-001"
-    base_url: str = "https://openrouter.ai/api/v1"
+    provider: str = "omniroute"
+    model: str = "gpt-4o-mini"
+    base_url: str = "http://localhost:20128/v1"
     api_key: str = ""
     temperature: float = 0.7
     max_tokens: int = 2048

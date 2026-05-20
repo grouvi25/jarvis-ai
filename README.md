@@ -23,7 +23,7 @@
 - **Управление десктопом** — запускает программы, выполняет команды, горячие клавиши
 - **Отправка сообщений** — пишет в Telegram от твоего имени
 - **Авто-переподключение интернета** — сам переподключает WiFi и проходит captive portal (идеально для общаг)
-- **Любой LLM через API** — OpenRouter (много моделей, есть бесплатные), OpenAI, Groq, Ollama
+- **Любой LLM через API** — [OmniRoute](https://omniroute.online/) (160+ провайдеров, авто-фоллбэк, бесплатные модели), OpenAI, Groq, Ollama
 - **Расширяемость** — легко добавлять свои скиллы
 
 ## Быстрый старт
@@ -50,12 +50,16 @@ pip install -e ".[voice]"      # Голосовой режим (Whisper + wake w
 pip install -e ".[all]"        # Всё сразу
 ```
 
-### 2. Получи API-ключ
+### 2. Установи [OmniRoute](https://omniroute.online/) (бесплатный AI-шлюз)
 
-Самый простой вариант — [OpenRouter](https://openrouter.ai/) (много моделей через один ключ, есть бесплатные):
-1. Зарегистрируйся на https://openrouter.ai/
-2. Создай API-ключ в https://openrouter.ai/keys
-3. Вставь в конфиг (see ниже)
+```bash
+npm install -g omniroute
+omniroute
+# Откроется дашборд — добавь свои API-ключи от провайдеров (OpenAI, Anthropic, Google и т.д.)
+# OmniRoute сам роутит запросы с авто-фоллбэком
+```
+
+OmniRoute — это локальный прокси на `localhost:20128/v1`. 160+ провайдеров, сжатие токенов, авто-фоллбэк между моделями. Бесплатные модели доступны из коробки.
 
 ### 3. Настрой конфиг
 
@@ -84,32 +88,19 @@ jarvis
 ### LLM (мозг)
 
 ```yaml
-# OpenRouter (рекомендуется)
+# OmniRoute (рекомендуется — бесплатный AI-шлюз)
 llm:
-  provider: "openrouter"
-  model: "google/gemini-2.0-flash-001"  # или любая с openrouter.ai/models
-  base_url: "https://openrouter.ai/api/v1"
-  api_key: "sk-or-..."     # Твой ключ с openrouter.ai/keys
+  provider: "omniroute"
+  model: "gpt-4o-mini"  # любая модель из твоих провайдеров
+  base_url: "http://localhost:20128/v1"  # локальный OmniRoute
+  # base_url: "https://cloud.omniroute.online/v1"  # или облачный
 
-# Или OpenAI напрямую:
+# Или напрямую к провайдеру (без OmniRoute):
 # llm:
 #   provider: "openai"
 #   model: "gpt-4o-mini"
 #   base_url: "https://api.openai.com/v1"
 #   api_key: "sk-..."
-
-# Или Groq (быстро + есть бесплатный tier):
-# llm:
-#   provider: "groq"
-#   model: "llama-3.1-70b-versatile"
-#   base_url: "https://api.groq.com/openai/v1"
-#   api_key: "gsk_..."
-
-# Или Ollama (локально, если мощный комп):
-# llm:
-#   provider: "ollama"
-#   model: "llama3.1"
-#   base_url: "http://localhost:11434/v1"
 ```
 
 ### Голос
