@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S.</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-circle">J</span>
+            <span class="brand-name">J.A.R.V.I.S.</span>
+            <span id="status-pill" class="pill pill-ok">подключение…</span>
+        </div>
+        <nav class="tabs">
+            <button data-tab="chat" class="tab active">Чат</button>
+            <button data-tab="memory" class="tab">Память</button>
+            <button data-tab="settings" class="tab">Настройки</button>
+            <button data-tab="skills" class="tab">Скиллы</button>
+        </nav>
+    </header>
+
+    <main>
+        <section id="tab-chat" class="tab-pane active">
+            <div id="messages" class="messages"></div>
+            <form id="chat-form" class="composer">
+                <input id="chat-input" type="text" autocomplete="off"
+                       placeholder="Скажи Джарвису что нужно сделать…" autofocus>
+                <button type="button" id="btn-clear" title="Очистить историю">⟲</button>
+                <button type="submit" id="btn-send">Отправить</button>
+            </form>
+        </section>
+
+        <section id="tab-memory" class="tab-pane">
+            <h2>Что я о тебе помню</h2>
+            <ul id="memory-list" class="memory-list"></ul>
+            <form id="memory-form" class="composer">
+                <input id="memory-input" type="text" placeholder="Запомнить факт о пользователе…">
+                <button type="submit">Запомнить</button>
+            </form>
+        </section>
+
+        <section id="tab-settings" class="tab-pane">
+            <h2>Настройки</h2>
+            <form id="settings-form" class="settings-form">
+                <fieldset>
+                    <legend>Общее</legend>
+                    <label>Имя ассистента <input type="text" name="general.name"></label>
+                    <label>Как обращаться к вам <input type="text" name="general.master_name"></label>
+                    <label class="row">
+                        <input type="checkbox" name="general.voice_enabled">
+                        <span>Голос (TTS)</span>
+                    </label>
+                    <label class="row">
+                        <input type="checkbox" name="general.autostart">
+                        <span>Запускать при старте системы</span>
+                    </label>
+                </fieldset>
+                <fieldset>
+                    <legend>LLM</legend>
+                    <label>Провайдер
+                        <select name="llm.provider">
+                            <option value="omniroute">OmniRoute (локальный шлюз)</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="groq">Groq</option>
+                            <option value="ollama">Ollama (локально)</option>
+                            <option value="custom">Другой (OpenAI-совместимый)</option>
+                        </select>
+                    </label>
+                    <label>Модель <input type="text" name="llm.model"></label>
+                    <label>Base URL <input type="text" name="llm.base_url"></label>
+                    <label>API key
+                        <input type="password" name="llm.api_key"
+                               placeholder="оставь пустым чтобы не менять">
+                    </label>
+                </fieldset>
+                <fieldset>
+                    <legend>Голос (TTS)</legend>
+                    <label>Движок
+                        <select name="tts.engine">
+                            <option value="edge-tts">edge-tts (бесплатно)</option>
+                            <option value="xtts">XTTS (клон голоса)</option>
+                        </select>
+                    </label>
+                    <label>Голос edge-tts <input type="text" name="tts.edge_voice"></label>
+                    <label>Скорость <input type="text" name="tts.edge_rate" placeholder="+0%"></label>
+                </fieldset>
+                <button type="submit" class="primary">Сохранить</button>
+                <span id="settings-saved" class="hidden">✓ сохранено</span>
+            </form>
+        </section>
+
+        <section id="tab-skills" class="tab-pane">
+            <h2>Подключённые скиллы</h2>
+            <ul id="skills-list" class="skills-list"></ul>
+        </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
