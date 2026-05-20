@@ -149,8 +149,44 @@ def _dict_to_config(data: dict[str, Any]) -> JarvisConfig:
     )
 
 
+def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
+    """Переопределить конфиг значениями из переменных окружения / .env."""
+    import os
+
+    env_file = PROJECT_ROOT / ".env"
+    if env_file.exists():
+        with open(env_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, _, value = line.partition("=")
+                    value = value.strip().strip("\"'")
+                    os.environ.setdefault(key.strip(), value)
+
+    env_map = {
+        "JARVIS_LLM_API_KEY": ("llm", "api_key"),
+        "JARVIS_LLM_MODEL": ("llm", "model"),
+        "JARVIS_LLM_BASE_URL": ("llm", "base_url"),
+        "JARVIS_LLM_PROVIDER": ("llm", "provider"),
+        "JARVIS_TELEGRAM_TOKEN": ("telegram", "bot_token"),
+        "JARVIS_WIFI_SSID": ("internet", "wifi_ssid"),
+        "JARVIS_WIFI_PASSWORD": ("internet", "wifi_password"),
+    }
+
+    for env_key, (section, field_name) in env_map.items():
+        value = os.environ.get(env_key)
+        if value:
+            if section not in data:
+                data[section] = {}
+            data[section][field_name] = value
+
+    return data
+
+
 def load_config() -> JarvisConfig:
-    """Загрузить конфигурацию из YAML-файлов."""
+    """Загрузить конфигурацию из YAML-файлов + .env + переменных окружения."""
     data: dict[str, Any] = {}
 
     if DEFAULT_CONFIG.exists():
@@ -161,5 +197,7 @@ def load_config() -> JarvisConfig:
         with open(LOCAL_CONFIG, encoding="utf-8") as f:
             local_data = yaml.safe_load(f) or {}
             data = _deep_merge(data, local_data)
+
+    data = _apply_env_overrides(data)
 
     return _dict_to_config(data)

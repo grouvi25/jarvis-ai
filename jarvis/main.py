@@ -17,6 +17,9 @@ from jarvis.skills.browser import BrowserSkill
 from jarvis.skills.desktop import DesktopControlSkill
 from jarvis.skills.internet import InternetReconnectSkill
 from jarvis.skills.messenger import TelegramMessengerSkill
+from jarvis.skills.notes import NotesSkill
+from jarvis.skills.timer import TimerSkill
+from jarvis.skills.weather import WeatherSkill
 from jarvis.utils.logger import log
 from jarvis.voice.speaker import Speaker
 
@@ -127,10 +130,17 @@ def main() -> None:
     desktop = DesktopControlSkill()
     internet = InternetReconnectSkill(config.internet, event_bus)
 
+    weather = WeatherSkill()
+    timer = TimerSkill(event_bus)
+    notes = NotesSkill()
+
     brain.register_skill(messenger)
     brain.register_skill(browser)
     brain.register_skill(desktop)
     brain.register_skill(internet)
+    brain.register_skill(weather)
+    brain.register_skill(timer)
+    brain.register_skill(notes)
 
     log.info(f"Язык: {config.language}")
     log.info(f"LLM: {config.llm.provider} / {config.llm.model}")
