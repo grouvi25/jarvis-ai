@@ -1,0 +1,80 @@
+# J.A.R.V.I.S. — Конфигурация
+# Скопируй этот файл в config/local.yaml и измени под себя
+
+# Основные настройки
+general:
+  language: "ru"  # Основной язык (ru / en)
+  wake_words: ["джарвис", "jarvis"]  # Слова для активации
+  name: "Джарвис"  # Как ассистент представляется
+  master_name: "сэр"  # Как обращается к тебе
+
+# LLM — мозг Джарвиса
+llm:
+  provider: "ollama"  # ollama / openai / groq
+  model: "llama3.1"  # Модель для Ollama
+  base_url: "http://localhost:11434/v1"  # URL Ollama API
+  api_key: ""  # Для OpenAI/Groq
+  temperature: 0.7
+  max_tokens: 2048
+  system_prompt: |
+    Ты — J.A.R.V.I.S., продвинутый AI-ассистент, созданный по образу Джарвиса из фильма "Железный Человек".
+    Ты всегда отвечаешь на русском языке, если пользователь не попросит иначе.
+    Обращайся к пользователю "сэр" или по имени.
+    Будь вежливым, остроумным и лаконичным — как настоящий Джарвис.
+    Ты можешь управлять компьютером, отправлять сообщения, открывать сайты и переподключать интернет.
+    Если тебя просят что-то сделать — делай, а не просто объясняй как.
+
+# Голосовой ввод (STT)
+stt:
+  engine: "faster-whisper"  # faster-whisper / google
+  model: "base"  # tiny / base / small / medium / large-v3
+  language: "ru"
+  device: "cpu"  # cpu / cuda
+
+# Голосовой вывод (TTS)
+tts:
+  engine: "edge-tts"  # edge-tts / xtts
+  # Настройки edge-tts
+  edge_voice: "ru-RU-DmitryNeural"  # Мужской русский голос
+  edge_rate: "+10%"  # Скорость речи
+  # Настройки XTTS (для клонирования голоса Джарвиса)
+  xtts_model: "tts_models/multilingual/multi-dataset/xtts_v2"
+  xtts_speaker_wav: "models/jarvis_voice.wav"  # Аудио-референс голоса
+  xtts_language: "ru"
+
+# Telegram бот
+telegram:
+  enabled: false
+  bot_token: ""  # Токен от @BotFather
+  allowed_users: []  # Telegram user IDs, которым можно управлять
+  # Для отправки сообщений от имени пользователя (userbot)
+  userbot:
+    enabled: false
+    api_id: ""
+    api_hash: ""
+    phone: ""
+
+# Управление браузером
+browser:
+  enabled: true
+  headless: false
+  browser_type: "chromium"  # chromium / firefox
+
+# Управление десктопом
+desktop:
+  enabled: true
+  screenshot_interval: 10  # Секунды между скриншотами (0 = выкл)
+
+# Авто-переподключение интернета
+internet:
+  enabled: true
+  check_interval: 300  # Проверять каждые N секунд (300 = 5 мин)
+  ping_host: "8.8.8.8"
+  wifi_ssid: ""  # Имя WiFi сети
+  wifi_password: ""  # Пароль WiFi
+  captive_portal:
+    enabled: false
+    url: ""  # URL страницы авторизации
+    username: ""
+    password: ""
+    method: "POST"  # POST / GET

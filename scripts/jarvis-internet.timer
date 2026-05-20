@@ -1,0 +1,10 @@
+[Unit]
+Description=J.A.R.V.I.S. Internet Check Timer
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

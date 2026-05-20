@@ -1,0 +1,14 @@
+[Unit]
+Description=J.A.R.V.I.S. Internet Auto-Reconnect
+After=network.target NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/jarvis-ai/scripts/auto_internet.sh
+Environment="JARVIS_PING_HOST=8.8.8.8"
+# Раскомментируй и заполни:
+# Environment="JARVIS_WIFI_SSID=МояСеть"
+# Environment="JARVIS_WIFI_PASSWORD=МойПароль"
+# Environment="JARVIS_CAPTIVE_URL=http://portal.dormitory.ru/login"
+# Environment="JARVIS_CAPTIVE_USER=student123"
+# Environment="JARVIS_CAPTIVE_PASS=password123"
