@@ -23,7 +23,7 @@
 - **Управление десктопом** — запускает программы, выполняет команды, горячие клавиши
 - **Отправка сообщений** — пишет в Telegram от твоего имени
 - **Авто-переподключение интернета** — сам переподключает WiFi и проходит captive portal (идеально для общаг)
-- **Любой LLM** — Ollama (бесплатно, локально), OpenAI, Groq, любой OpenAI-совместимый API
+- **Любой LLM через API** — OpenRouter (много моделей, есть бесплатные), OpenAI, Groq, Ollama
 - **Расширяемость** — легко добавлять свои скиллы
 
 ## Быстрый старт
@@ -39,22 +39,23 @@ cd jarvis-ai
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Установи зависимости
+# Установи базовые зависимости (лёгкие, без GPU)
 pip install -e .
 
-# Для клонирования голоса (нужна GPU):
-pip install -e ".[xtts]"
-
-# Установи Playwright браузер
-playwright install chromium
+# Дополнительно (опционально):
+pip install -e ".[telegram]"   # Отправка сообщений в Telegram
+pip install -e ".[browser]"    # Управление браузером
+pip install -e ".[desktop]"    # Управление десктопом
+pip install -e ".[voice]"      # Голосовой режим (Whisper + wake word)
+pip install -e ".[all]"        # Всё сразу
 ```
 
-### 2. Установи LLM (Ollama — бесплатно)
+### 2. Получи API-ключ
 
-```bash
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1
-```
+Самый простой вариант — [OpenRouter](https://openrouter.ai/) (много моделей через один ключ, есть бесплатные):
+1. Зарегистрируйся на https://openrouter.ai/
+2. Создай API-ключ в https://openrouter.ai/keys
+3. Вставь в конфиг (see ниже)
 
 ### 3. Настрой конфиг
 
@@ -83,11 +84,32 @@ jarvis
 ### LLM (мозг)
 
 ```yaml
+# OpenRouter (рекомендуется)
 llm:
-  provider: "ollama"        # ollama / openai / groq
-  model: "llama3.1"         # Модель
-  base_url: "http://localhost:11434/v1"
-  api_key: ""               # Для OpenAI/Groq
+  provider: "openrouter"
+  model: "google/gemini-2.0-flash-001"  # или любая с openrouter.ai/models
+  base_url: "https://openrouter.ai/api/v1"
+  api_key: "sk-or-..."     # Твой ключ с openrouter.ai/keys
+
+# Или OpenAI напрямую:
+# llm:
+#   provider: "openai"
+#   model: "gpt-4o-mini"
+#   base_url: "https://api.openai.com/v1"
+#   api_key: "sk-..."
+
+# Или Groq (быстро + есть бесплатный tier):
+# llm:
+#   provider: "groq"
+#   model: "llama-3.1-70b-versatile"
+#   base_url: "https://api.groq.com/openai/v1"
+#   api_key: "gsk_..."
+
+# Или Ollama (локально, если мощный комп):
+# llm:
+#   provider: "ollama"
+#   model: "llama3.1"
+#   base_url: "http://localhost:11434/v1"
 ```
 
 ### Голос
@@ -98,8 +120,7 @@ tts:
   edge_voice: "ru-RU-DmitryNeural"  # Мужской русский голос
 
 stt:
-  engine: "faster-whisper"
-  model: "base"             # tiny/base/small/medium/large-v3
+  engine: "google"          # google (бесплатно, нужен инет) / faster-whisper (локально)
   language: "ru"
 ```
 
@@ -240,11 +261,12 @@ brain.register_skill(MySkill())
 | Компонент | Минимум | Рекомендуется |
 |-----------|---------|---------------|
 | Python | 3.10+ | 3.12+ |
-| RAM | 4 GB | 16 GB |
-| GPU | Не нужна | NVIDIA 6+ GB VRAM |
+| RAM | 2 GB | 4 GB |
+| GPU | Не нужна | Не нужна (всё через API) |
 | ОС | Linux | Ubuntu 22.04+ |
+| Интернет | Нужен (для API) | Нужен |
 
-**Без GPU**: edge-tts + Whisper tiny/base + маленькая LLM через Ollama.
+**Ноутбук?** Без проблем! Всё тяжёлое работает через API (OpenRouter/OpenAI/Groq). Твой комп только шлёт запросы и играет аудио.
 
 ## Лицензия
 
