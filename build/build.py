@@ -94,8 +94,14 @@ def build_installer() -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--installer", action="store_true", help="Также собрать Windows-инсталлятор")
-    parser.add_argument("--only-installer", action="store_true", help="Только инсталлятор (exe уже собран)")
+    parser.add_argument(
+        "--installer", action="store_true",
+        help="Также собрать Windows-инсталлятор",
+    )
+    parser.add_argument(
+        "--only-installer", action="store_true",
+        help="Только инсталлятор (exe уже собран)",
+    )
     args = parser.parse_args()
 
     if not args.only_installer:

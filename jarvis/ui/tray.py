@@ -17,7 +17,12 @@ def make_icon_image(size: int = 64) -> "object":
     d = ImageDraw.Draw(img)
     # Круг (рамка)
     pad = 4
-    d.ellipse([pad, pad, size - pad, size - pad], fill=(15, 22, 36, 255), outline=(64, 196, 255, 255), width=3)
+    d.ellipse(
+        [pad, pad, size - pad, size - pad],
+        fill=(15, 22, 36, 255),
+        outline=(64, 196, 255, 255),
+        width=3,
+    )
     # Буква "J"
     try:
         from PIL import ImageFont

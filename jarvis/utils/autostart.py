@@ -9,7 +9,6 @@ from pathlib import Path
 from jarvis.utils import platform as plat
 from jarvis.utils.logger import log
 
-
 APP_NAME = "Jarvis"
 
 

@@ -1,19 +1,16 @@
-"""Скилл управления контактами."""
+"""Контакты — сохранение и поиск контактов с метками (девушка, мама, друг)."""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from jarvis.core.memory import Memory
 from jarvis.skills.base import Skill
-from jarvis.utils.logger import log
+from jarvis.utils.paths import CONTACTS_FILE, ensure_dirs
 
 
 class ContactsSkill(Skill):
-    """Управление контактами — добавить, найти, удалить."""
-
-    def __init__(self, memory: Memory) -> None:
-        self._memory = memory
+    """Управление контактами: добавить, найти, удалить, список."""
 
     @property
     def name(self) -> str:
@@ -22,12 +19,12 @@ class ContactsSkill(Skill):
     @property
     def description(self) -> str:
         return (
-            "Управление контактами: добавить, найти, удалить, показать список. "
-            "Используй когда пользователь просит добавить контакт, "
-            "узнать чей-то Telegram, или написать кому-то по имени/метке "
-            "(девушка, мама, друг и т.д.). "
-            "Для отправки сообщения контакту — сначала найди контакт через "
-            "эту функцию, потом используй send_telegram_message."
+            "Управление контактами пользователя. Действия: "
+            "add (добавить контакт), find (найти по имени или метке), "
+            "list (показать все), delete (удалить). "
+            "Поле label — метка-роль: девушка, мама, друг, коллега, и т.д. "
+            "Когда пользователь говорит 'напиши моей девушке' — "
+            "ищи по label='девушка'."
         )
 
     @property
@@ -37,11 +34,8 @@ class ContactsSkill(Skill):
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["add", "find", "list", "remove"],
-                    "description": (
-                        "add — добавить контакт, find — найти контакт, "
-                        "list — показать все контакты, remove — удалить"
-                    ),
+                    "enum": ["add", "find", "list", "delete"],
+                    "description": "Действие",
                 },
                 "name": {
                     "type": "string",
@@ -49,16 +43,12 @@ class ContactsSkill(Skill):
                 },
                 "telegram_id": {
                     "type": "string",
-                    "description": (
-                        "Telegram ID или @username контакта "
-                        "(для add)"
-                    ),
+                    "description": "Telegram username или ID",
                 },
                 "label": {
                     "type": "string",
                     "description": (
-                        "Метка/роль контакта: девушка, мама, "
-                        "друг, босс и т.д. (для add)"
+                        "Метка-роль: девушка, мама, друг, коллега, босс"
                     ),
                 },
             },
@@ -66,48 +56,111 @@ class ContactsSkill(Skill):
         }
 
     async def execute(self, **kwargs: Any) -> str:
-        action = kwargs.get("action", "list")
-        name = kwargs.get("name", "")
-        telegram_id = kwargs.get("telegram_id", "")
-        label = kwargs.get("label", "")
+        action = kwargs.get("action")
+        name = (kwargs.get("name") or "").strip()
+        telegram_id = (kwargs.get("telegram_id") or "").strip()
+        label = (kwargs.get("label") or "").strip()
 
         if action == "add":
-            if not name or not telegram_id:
-                return "Укажи имя и telegram_id контакта"
-            self._memory.add_contact(name, telegram_id, label)
-            label_str = f" ({label})" if label else ""
-            log.info(f"Контакт добавлен: {name}{label_str}")
-            return f"Контакт добавлен: {name}{label_str} → {telegram_id}"
-
-        elif action == "find":
             if not name:
+                return "Укажи имя контакта"
+            return self._add(name, telegram_id, label)
+
+        if action == "find":
+            query = name or label
+            if not query:
                 return "Укажи имя или метку для поиска"
-            contact = self._memory.get_contact(name)
-            if contact:
-                label_str = f" ({contact['label']})" if contact.get("label") else ""
-                return (
-                    f"Найден контакт: {contact['name']}{label_str} "
-                    f"→ Telegram: {contact['telegram_id']}"
-                )
-            return f"Контакт '{name}' не найден"
+            return self._find(query)
 
-        elif action == "list":
-            contacts = self._memory.list_contacts()
-            if not contacts:
-                return "Контактов пока нет. Добавь: 'Джарвис, добавь контакт ...'"
-            lines = [f"Контакты ({len(contacts)}):"]
-            for c in contacts:
-                label_str = f" ({c['label']})" if c.get("label") else ""
-                lines.append(
-                    f"  - {c['name']}{label_str}: {c['telegram_id']}"
-                )
-            return "\n".join(lines)
+        if action == "list":
+            return self._list_all()
 
-        elif action == "remove":
+        if action == "delete":
             if not name:
                 return "Укажи имя контакта для удаления"
-            if self._memory.remove_contact(name):
-                return f"Контакт '{name}' удалён"
-            return f"Контакт '{name}' не найден"
+            return self._delete(name)
 
         return f"Неизвестное действие: {action}"
+
+    # ---------- internal ----------
+
+    def _load(self) -> dict[str, dict[str, str]]:
+        if not CONTACTS_FILE.exists():
+            return {}
+        try:
+            return json.loads(
+                CONTACTS_FILE.read_text(encoding="utf-8"),
+            )
+        except Exception:
+            return {}
+
+    def _save(self, contacts: dict[str, dict[str, str]]) -> None:
+        ensure_dirs()
+        CONTACTS_FILE.write_text(
+            json.dumps(contacts, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _add(
+        self, name: str, telegram_id: str, label: str,
+    ) -> str:
+        contacts = self._load()
+        key = name.lower().strip()
+        contacts[key] = {
+            "name": name,
+            "telegram_id": telegram_id,
+            "label": label,
+        }
+        self._save(contacts)
+        label_str = f" ({label})" if label else ""
+        tg_str = f", Telegram: {telegram_id}" if telegram_id else ""
+        return f"Контакт сохранён: {name}{label_str}{tg_str}"
+
+    def _find(self, query: str) -> str:
+        contacts = self._load()
+        query_lower = query.lower().strip()
+
+        # Прямое совпадение по имени
+        if query_lower in contacts:
+            return self._format_contact(contacts[query_lower])
+
+        # Поиск по метке
+        for contact in contacts.values():
+            if contact.get("label", "").lower() == query_lower:
+                return self._format_contact(contact)
+
+        # Частичное совпадение
+        for key, contact in contacts.items():
+            if (
+                query_lower in key
+                or query_lower in contact.get("label", "").lower()
+            ):
+                return self._format_contact(contact)
+
+        return f"Контакт '{query}' не найден"
+
+    def _list_all(self) -> str:
+        contacts = self._load()
+        if not contacts:
+            return "Список контактов пуст"
+        lines = []
+        for contact in contacts.values():
+            lines.append(self._format_contact(contact))
+        return "\n".join(lines)
+
+    def _delete(self, name: str) -> str:
+        contacts = self._load()
+        key = name.lower().strip()
+        if key not in contacts:
+            return f"Контакт '{name}' не найден"
+        del contacts[key]
+        self._save(contacts)
+        return f"Контакт '{name}' удалён"
+
+    @staticmethod
+    def _format_contact(contact: dict[str, str]) -> str:
+        label = contact.get("label")
+        tg = contact.get("telegram_id")
+        label_str = f" ({label})" if label else ""
+        tg_str = f" → Telegram: {tg}" if tg else ""
+        return f"{contact['name']}{label_str}{tg_str}"
