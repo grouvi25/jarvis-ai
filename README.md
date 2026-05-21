@@ -1,8 +1,8 @@
 # J.A.R.V.I.S.
 
-**Just A Rather Very Intelligent System**
-
-Автономный AI-ассистент с голосовым управлением, контролем десктопа и полной поддержкой русского языка. Вдохновлён Джарвисом из "Железного Человека".
+**Just A Rather Very Intelligent System** — личный AI-ассистент, который живёт в трее
+твоего компьютера, отвечает голосом и текстом, и реально делает дела: открывает сайты,
+читает файлы, переподключает интернет, запоминает что ты ему говоришь.
 
 ```
        ██╗ █████╗ ██████╗ ██╗   ██╗██╗███████╗
@@ -15,120 +15,207 @@
 
 ---
 
-## Что умеет
+## Что это
 
-- **Голосовое управление** — скажи "Джарвис" и он слушает. Распознаёт русский и английский (Whisper)
-- **Голос Джарвиса** — клонирование голоса через XTTS v2 или edge-tts на русском
-- **Управление браузером** — открывает сайты, гуглит, заполняет формы (Playwright)
-- **Управление десктопом** — запускает программы, выполняет команды, горячие клавиши
-- **Отправка сообщений** — пишет в Telegram от твоего имени
-- **Авто-переподключение интернета** — сам переподключает WiFi и проходит captive portal (идеально для общаг)
-- **Любой LLM через API** — [OmniRoute](https://omniroute.online/) (160+ провайдеров, авто-фоллбэк, бесплатные модели), OpenAI, Groq, Ollama
-- **Расширяемость** — легко добавлять свои скиллы
+Десктопное приложение, которое:
 
-## Быстрый старт
+1. **Висит иконкой в трее** — клик открывает чат в браузере.
+2. **Чат + голос** — общайся текстом в красивом веб-UI или голосом ("Джарвис, …").
+3. **Делает дела на компе** — запускает программы, читает файлы, копирует в буфер,
+   выключает компьютер по таймеру, смотрит сколько RAM свободно, ищет в гугле,
+   управляет браузером через Playwright.
+4. **Помнит тебя** — запоминает факты ("меня зовут Никита", "я живу в Москве"),
+   сохраняет историю разговоров между сессиями.
+5. **Запускается при входе в систему** — один раз поставил и забыл.
+6. **Любой LLM** — OmniRoute (бесплатный шлюз с 160+ провайдерами), OpenAI, Groq,
+   Ollama, или любой OpenAI-совместимый.
 
-### 1. Установка
+---
+
+## Установка
+
+### Windows — готовый инсталлятор
+
+1. Скачай `Jarvis-Setup.exe` со страницы релизов.
+2. Двойной клик → "Далее" → "Установить".
+3. Выбери "Запускать при старте Windows" (если хочешь).
+4. После установки откроется мастер настройки — выбери LLM и введи API-ключ.
+5. Иконка появится в трее. Клик → откроется чат.
+
+### Windows — из исходников
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\scripts\install.ps1
+```
+
+### Linux / macOS — одной командой
 
 ```bash
-# Клонируй репозиторий
-git clone https://github.com/grouvi25/jarvis-ai.git
-cd jarvis-ai
+bash scripts/install.sh
+```
 
-# Создай виртуальное окружение
-python3 -m venv .venv
-source .venv/bin/activate
+Скрипт:
+1. Проверит Python 3.10+
+2. Создаст `venv` в `~/.local/share/jarvis/venv`
+3. Установит пакет и положит лаунчер в `~/.local/bin/jarvis-app`
+4. На Linux — добавит `.desktop`-запись, чтобы Джарвис был в меню приложений
+5. Спросит про автозапуск
 
-# Установи базовые зависимости (лёгкие, без GPU)
+После установки запусти `jarvis-app` — впервые откроется CLI-мастер настройки.
+
+### Любая платформа — pip
+
+```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -e .
+pip install -e ".[voice]"     # голосовой режим (whisper + микрофон)
+pip install -e ".[desktop]"   # управление десктопом (pyautogui)
+pip install -e ".[browser]"   # управление браузером (playwright)
+pip install -e ".[all]"       # всё сразу
 
-# Дополнительно (опционально):
-pip install -e ".[telegram]"   # Отправка сообщений в Telegram
-pip install -e ".[browser]"    # Управление браузером
-pip install -e ".[desktop]"    # Управление десктопом
-pip install -e ".[voice]"      # Голосовой режим (Whisper + wake word)
-pip install -e ".[all]"        # Всё сразу
+jarvis-setup     # интерактивный мастер
+jarvis-app       # запустить десктоп-приложение (трей + web-UI)
+jarvis --text    # простой текстовый CLI
+jarvis --voice   # голосовой CLI без трея
 ```
 
-### 2. Установи [OmniRoute](https://omniroute.online/) (бесплатный AI-шлюз)
+---
+
+## Сборка собственного exe
 
 ```bash
-npm install -g omniroute
-omniroute
-# Откроется дашборд — добавь свои API-ключи от провайдеров (OpenAI, Anthropic, Google и т.д.)
-# OmniRoute сам роутит запросы с авто-фоллбэком
+pip install -e .[build]
+python build/build.py                 # → dist/Jarvis.exe
+python build/build.py --installer     # +Inno Setup инсталлятор (только Windows)
 ```
 
-OmniRoute — это локальный прокси на `localhost:20128/v1`. 160+ провайдеров, сжатие токенов, авто-фоллбэк между моделями. Бесплатные модели доступны из коробки.
+`build/jarvis.spec` — конфиг PyInstaller, `build/installer.iss` — Inno Setup.
 
-### 3. Настрой конфиг
+---
 
-```bash
-cp config/config.yaml config/local.yaml
-# Отредактируй config/local.yaml под себя
-```
+## Использование
 
-### 4. Запуск
+После установки в трее появится иконка `J`. Меню:
 
-```bash
-# Текстовый режим (без микрофона)
-jarvis --text
+- **Открыть чат** — открывает `http://127.0.0.1:8765` в браузере
+- **Голос: вкл/выкл** — включает/выключает TTS-ответы
+- **Перезагрузить конфиг** — после ручной правки yaml
+- **Выход** — корректно останавливает фоновый процесс
 
-# Голосовой режим
-jarvis --voice
+В чате четыре вкладки:
 
-# Автоопределение
-jarvis
-```
+- **Чат** — диалог с Джарвисом
+- **Память** — что он о тебе помнит (можно вручную добавить/удалить)
+- **Настройки** — LLM, голос, автозапуск, имя, обращение
+- **Скиллы** — список доступных инструментов
+
+---
+
+## Что умеет (скиллы)
+
+| Скилл | Примеры |
+|---|---|
+| `desktop_control` | "запусти firefox", "сделай скриншот", "поставь громкость 50", "выключи комп через 10 минут", "заблокируй экран" |
+| `files` | "прочитай ~/notes.txt", "сохрани это в файл report.md", "что в папке Downloads", "найди все *.pdf" |
+| `clipboard` | "что у меня в буфере", "скопируй это" |
+| `system_info` | "сколько свободной памяти", "как нагружен процессор", "сколько батареи", "что грузит комп" |
+| `time` | "сколько времени", "напомни через 10 минут о созвоне" |
+| `notes` | "запомни что меня зовут Никита", "что ты обо мне помнишь", "забудь про работу", "запиши: купить молоко" |
+| `web_search` | "найди в интернете последние новости про …" (DuckDuckGo, без ключей) |
+| `browser_action` | "открой ютуб", "погугли рецепт борща", "сделай скрин страницы" (Playwright) |
+| `reconnect_internet` | "пропал интернет, переподключись" — для общаги |
+| `send_telegram_message` | "напиши Маше что я опоздаю" (через Telegram-бота) |
+
+---
 
 ## Конфигурация
 
-Основные настройки в `config/local.yaml`:
+Конфиг хранится в OS-стандартных местах:
 
-### LLM (мозг)
+| OS | Путь |
+|---|---|
+| Linux | `~/.config/jarvis/config.yaml` |
+| macOS | `~/Library/Application Support/Jarvis/config.yaml` |
+| Windows | `%APPDATA%\Jarvis\config.yaml` |
 
-```yaml
-# OmniRoute (рекомендуется — бесплатный AI-шлюз)
-llm:
-  provider: "omniroute"
-  model: "gpt-4o-mini"  # любая модель из твоих провайдеров
-  base_url: "http://localhost:20128/v1"  # локальный OmniRoute
-  # base_url: "https://cloud.omniroute.online/v1"  # или облачный
+Логи: `~/.local/share/jarvis/logs/jarvis.log` (Linux) / соответствующий путь на других ОС.
 
-# Или напрямую к провайдеру (без OmniRoute):
-# llm:
-#   provider: "openai"
-#   model: "gpt-4o-mini"
-#   base_url: "https://api.openai.com/v1"
-#   api_key: "sk-..."
+Все настройки можно поменять через web-UI (вкладка "Настройки") или вручную.
+
+### Переменные окружения
+
+Поверх yaml-конфига приоритетнее всего — переменные окружения с префиксом `JARVIS_`:
+
+```bash
+JARVIS_LLM_PROVIDER=openai
+JARVIS_LLM_MODEL=gpt-4o-mini
+JARVIS_LLM_BASE_URL=https://api.openai.com/v1
+JARVIS_LLM_API_KEY=sk-…
+JARVIS_SERVER_PORT=8765
+JARVIS_VOICE_ENABLED=false
+JARVIS_TELEGRAM_TOKEN=…
 ```
 
-### Голос
+---
 
-```yaml
-tts:
-  engine: "edge-tts"        # edge-tts (бесплатно) / xtts (клон голоса)
-  edge_voice: "ru-RU-DmitryNeural"  # Мужской русский голос
+## LLM-провайдеры
 
-stt:
-  engine: "google"          # google (бесплатно, нужен инет) / faster-whisper (локально)
-  language: "ru"
+### OmniRoute (рекомендуется)
+[OmniRoute](https://omniroute.online/) — локальный AI-шлюз с 160+ провайдеров и
+бесплатными моделями.
+
+```bash
+npm install -g omniroute
+omniroute   # откроется дашборд, добавь свои ключи
 ```
 
-### Telegram
+В мастере выбери `1. OmniRoute`. Базовый URL `http://localhost:20128/v1` уже стоит.
 
-```yaml
-telegram:
-  enabled: true
-  bot_token: "123456:ABC..."  # От @BotFather
-```
+### OpenAI / Groq / Ollama
+Все OpenAI-совместимые. Просто введи свой `base_url`, `model`, `api_key` в мастере
+или в UI.
 
-### Авто-интернет (для общаги)
+---
+
+## Клонирование голоса Джарвиса
+
+Чтобы он говорил как из фильма (Пол Беттани):
+
+1. Найди чистый wav-кусочек его голоса 6-30 сек → сохрани как `models/jarvis_voice.wav`.
+2. В настройках выбери TTS-движок `xtts`.
+3. `pip install -e .[xtts]`
+
+Иначе по умолчанию работает `edge-tts` с бесплатным русским мужским голосом
+`ru-RU-DmitryNeural`.
+
+---
+
+## Голосовой режим
+
+Активируется одним из путей:
+
+- В десктопе — он сам включится при наличии микрофона (если в настройках `voice_enabled: true`)
+- В CLI — `jarvis --voice`
+
+Wake word — `Джарвис` или `jarvis`. Внутри две стратегии:
+
+1. **openwakeword** (рекомендуется) — нейросетевой детектор фразы "hey jarvis"
+2. **keyword fallback** — постоянная транскрипция через faster-whisper и поиск
+   wake-word в тексте
+
+Для распознавания речи — `faster-whisper` локально или Google Speech API онлайн.
+
+---
+
+## Автоматическое переподключение интернета
+
+Особенно полезно если ты живёшь в общаге, и WiFi отключается ночью:
 
 ```yaml
 internet:
   enabled: true
-  check_interval: 300        # Проверять каждые 5 минут
+  check_interval: 300
   wifi_ssid: "Dormitory_WiFi"
   wifi_password: "пароль"
   captive_portal:
@@ -138,126 +225,118 @@ internet:
     password: "mypassword"
 ```
 
-## Клонирование голоса Джарвиса
+Джарвис будет проверять интернет каждые 5 минут и переподключаться сам.
 
-Чтобы Джарвис говорил голосом из фильма:
-
-1. Найди чистое аудио Пола Беттани (голос Джарвиса), 6-30 секунд
-2. Сохрани как `models/jarvis_voice.wav`
-3. Измени конфиг:
-
-```yaml
-tts:
-  engine: "xtts"
-  xtts_speaker_wav: "models/jarvis_voice.wav"
-  xtts_language: "ru"
-```
-
-4. Установи XTTS: `pip install -e ".[xtts]"`
-
-## Авто-переподключение интернета
-
-Для общаги где интернет отключается ночью:
-
-### Вариант 1: Через Джарвиса (автоматически)
-Если Джарвис запущен — он сам мониторит интернет и переподключает.
-
-### Вариант 2: Системный сервис (даже без Джарвиса)
+Если Джарвис не запущен — есть systemd-сервис:
 
 ```bash
-# Настрой переменные в scripts/jarvis-internet.service
 sudo cp scripts/jarvis-internet.{service,timer} /etc/systemd/system/
 sudo systemctl enable --now jarvis-internet.timer
 ```
 
-### Вариант 3: Cron
-
-```bash
-chmod +x scripts/auto_internet.sh
-crontab -e
-# Добавь:
-# */5 * * * * /path/to/jarvis-ai/scripts/auto_internet.sh >> ~/jarvis_internet.log 2>&1
-```
+---
 
 ## Архитектура
 
 ```
-┌──────────────────────────────────────────────┐
-│                JARVIS                         │
-│                                               │
-│  Микрофон → [Wake Word] → [Whisper STT]      │
-│                              ↓                │
-│                         [LLM Brain]           │
-│                        ↙    ↓     ↘           │
-│                 [TTS]  [Skills]  [Events]     │
-│                   ↓    ↙  ↓   ↘               │
-│              Динамики  📱  🌐   🖥️             │
-│                     Telegram Browser Desktop  │
-│                                               │
-│  [Internet Monitor] — фоновая проверка сети   │
-└──────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────┐
+│                JARVIS Desktop App                  │
+│                                                    │
+│   ┌──────────┐   ┌──────────┐   ┌──────────────┐   │
+│   │   Tray   │   │  Voice   │   │ FastAPI      │   │
+│   │ (pystray)│   │ Wake+STT │   │  + WebSocket │   │
+│   └────┬─────┘   └────┬─────┘   └──────┬───────┘   │
+│        │              │                │           │
+│        └──────────────┴────────────────┘           │
+│                       │                            │
+│                  ┌────▼────┐    ┌──────────────┐   │
+│                  │  Brain  │◄───┤    Memory    │   │
+│                  │  (LLM)  │    │ (persistent) │   │
+│                  └────┬────┘    └──────────────┘   │
+│                       │                            │
+│                  ┌────▼─────────────────┐          │
+│                  │  Skills (function    │          │
+│                  │  calling tools)      │          │
+│                  └──────────────────────┘          │
+└────────────────────────────────────────────────────┘
+              │             │           │
+           Desktop       Browser     Telegram
+          (любая ОС)   (Playwright)   (бот)
 ```
 
-### Модули
+### Что где
 
-| Модуль | Описание |
-|--------|----------|
-| `jarvis/core/brain.py` | LLM-мозг с function calling |
+| Модуль | Что делает |
+|---|---|
+| `jarvis/app.py` | Главная точка входа desktop-приложения |
+| `jarvis/main.py` | CLI-точка входа (`jarvis --text`/`--voice`) |
+| `jarvis/core/brain.py` | LLM-мозг с multi-step function calling |
+| `jarvis/core/memory.py` | Долговременная память + история диалога |
 | `jarvis/core/event_bus.py` | Асинхронная шина событий |
-| `jarvis/core/config.py` | Конфигурация из YAML |
-| `jarvis/voice/listener.py` | STT через faster-whisper |
-| `jarvis/voice/speaker.py` | TTS через edge-tts / XTTS v2 |
+| `jarvis/core/config.py` | Конфиг (YAML + env vars) |
+| `jarvis/core/setup_wizard.py` | Интерактивный мастер первого запуска |
+| `jarvis/voice/listener.py` | STT (faster-whisper или Google) |
+| `jarvis/voice/speaker.py` | TTS (edge-tts или XTTS) |
 | `jarvis/voice/wake_word.py` | Детектор wake word |
-| `jarvis/skills/messenger.py` | Отправка сообщений в Telegram |
-| `jarvis/skills/browser.py` | Управление браузером (Playwright) |
-| `jarvis/skills/desktop.py` | Управление десктопом |
-| `jarvis/skills/internet.py` | Авто-переподключение интернета |
+| `jarvis/skills/*` | Скиллы — каждый файл = один инструмент |
+| `jarvis/ui/server.py` | FastAPI + WebSocket бэкенд |
+| `jarvis/ui/tray.py` | Иконка в системном трее |
+| `jarvis/ui/web/*` | HTML/CSS/JS веб-UI |
+| `jarvis/utils/paths.py` | OS-aware пути (Win/Mac/Linux) |
+| `jarvis/utils/autostart.py` | Установка автозапуска при входе в систему |
+| `build/` | PyInstaller spec, Inno Setup инсталлятор |
+| `scripts/install.sh`, `install.ps1` | Скрипты установки из исходников |
+
+---
 
 ## Создание своих скиллов
 
 ```python
 from jarvis.skills.base import Skill
 
-class MySkill(Skill):
+class WeatherSkill(Skill):
     @property
     def name(self) -> str:
-        return "my_skill"
+        return "weather"
 
     @property
     def description(self) -> str:
-        return "Описание для LLM на русском"
+        return "Узнать погоду в городе. Используй когда спрашивают про погоду."
 
     @property
     def parameters(self) -> dict:
         return {
             "type": "object",
             "properties": {
-                "param1": {"type": "string", "description": "Описание"},
+                "city": {"type": "string", "description": "Название города"},
             },
-            "required": ["param1"],
+            "required": ["city"],
         }
 
     async def execute(self, **kwargs) -> str:
-        # Твоя логика
-        return "Результат"
+        city = kwargs.get("city", "")
+        # ... твоя логика ...
+        return f"В {city} сейчас солнечно, +20°C"
 ```
 
-Зарегистрируй в `main.py`:
+Зарегистрируй в `jarvis/app.py` → `register_all_skills`:
+
 ```python
-brain.register_skill(MySkill())
+brain.register_skill(WeatherSkill())
 ```
 
-## Требования
+---
 
-| Компонент | Минимум | Рекомендуется |
-|-----------|---------|---------------|
-| Python | 3.10+ | 3.12+ |
-| RAM | 2 GB | 4 GB |
-| GPU | Не нужна | Не нужна (всё через API) |
-| ОС | Linux | Ubuntu 22.04+ |
-| Интернет | Нужен (для API) | Нужен |
+## Разработка
 
-**Ноутбук?** Без проблем! Всё тяжёлое работает через API (OpenRouter/OpenAI/Groq). Твой комп только шлёт запросы и играет аудио.
+```bash
+pip install -e .[dev]
+pytest                  # запустить тесты
+ruff check jarvis       # линт
+ruff format jarvis      # форматирование
+```
+
+---
 
 ## Лицензия
 

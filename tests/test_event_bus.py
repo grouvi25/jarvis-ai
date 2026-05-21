@@ -6,8 +6,9 @@ import pytest
 
 from jarvis.core.event_bus import Event, EventBus, EventType
 
+pytestmark = pytest.mark.asyncio
 
-@pytest.mark.asyncio
+
 async def test_event_bus_emit_and_handle() -> None:
     """Отправка и получение событий."""
     bus = EventBus()
@@ -34,7 +35,6 @@ async def test_event_bus_emit_and_handle() -> None:
     assert received[0].data["text"] == "привет джарвис"
 
 
-@pytest.mark.asyncio
 async def test_event_bus_multiple_handlers() -> None:
     """Несколько обработчиков на одно событие."""
     bus = EventBus()
@@ -59,7 +59,6 @@ async def test_event_bus_multiple_handlers() -> None:
     assert count["value"] == 11
 
 
-@pytest.mark.asyncio
 async def test_event_bus_unsubscribe() -> None:
     """Отписка от события."""
     bus = EventBus()
