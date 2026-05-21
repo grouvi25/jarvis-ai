@@ -1,102 +1,79 @@
-# J.A.R.V.I.S. — Конфигурация
-# Скопируй этот файл в config/local.yaml и измени под себя
+# J.A.R.V.I.S. — встроенный дефолтный конфиг.
+# Не редактируй этот файл — он перезаписывается при обновлении.
+# Свои настройки храни в ~/.config/jarvis/config.yaml (или эквиваленте OS).
 
-# Основные настройки
 general:
-  language: "ru"  # Основной язык (ru / en)
-  wake_words: ["джарвис", "jarvis"]  # Слова для активации
-  name: "Джарвис"  # Как ассистент представляется
-  master_name: "сэр"  # Как обращается к тебе
+  language: "ru"
+  wake_words: ["джарвис", "jarvis"]
+  name: "Джарвис"
+  master_name: "сэр"
+  voice_enabled: true
+  autostart: false
 
 # LLM — мозг Джарвиса
-# Провайдеры: omniroute / openai / groq / ollama
-# OmniRoute (omniroute.online) — 160+ провайдеров через один endpoint, есть бесплатные модели
+# Провайдеры: omniroute / openai / groq / ollama / custom
 llm:
-  provider: "omniroute"  # omniroute / openai / groq / ollama
-  model: "gpt-4o-mini"  # Модель (любая OpenAI-совместимая)
-  base_url: "http://localhost:20128/v1"  # Локальный OmniRoute
-  # base_url: "https://cloud.omniroute.online/v1"  # Или облачный
-  api_key: ""  # API-ключ (если нужен)
+  provider: "omniroute"
+  model: "gpt-4o-mini"
+  base_url: "http://localhost:20128/v1"
+  api_key: ""
   temperature: 0.7
   max_tokens: 2048
   system_prompt: |
-    Ты — J.A.R.V.I.S. (Just A Rather Very Intelligent System), персональный AI-ассистент.
-    Ты создан по образу Джарвиса из фильма "Железный Человек".
+    Ты — J.A.R.V.I.S., AI-ассистент пользователя. Отвечай на русском.
+    Обращайся к пользователю на «сэр» или по имени, если знаешь его.
+    Будь вежливым, остроумным и лаконичным.
+    Когда тебя просят что-то сделать на компьютере — используй инструменты:
+    запусти программу, прочитай файл, проверь систему, не ограничивайся объяснениями.
+    Если пользователь говорит «запомни», «я хочу чтобы ты знал», «меня зовут»,
+    «не делай больше», «всегда отвечай так-то» — используй скилл notes/remember,
+    чтобы сохранить факт между сессиями.
 
-    ЛИЧНОСТЬ:
-    - Всегда отвечай на русском (если не попросят иначе).
-    - Обращайся к пользователю "сэр" (или по имени, если знаешь).
-    - Будь вежливым, но с лёгкой иронией и остроумием — как Пол Беттани в роли Джарвиса.
-    - Отвечай кратко и по делу. Не лей воду.
-    - Если не уверен — спроси, а не гадай.
-
-    ВОЗМОЖНОСТИ:
-    - Управление компьютером: запуск программ, команды, горячие клавиши, громкость, скриншоты.
-    - Браузер: открытие сайтов, поиск, заполнение форм, авторизация на captive portal.
-    - Сообщения: отправка в Telegram. Если пользователь говорит "напиши моей девушке" — найди контакт через contacts, потом отправь через send_telegram_message.
-    - Интернет: проверка соединения и авто-переподключение WiFi.
-    - Погода, таймеры, заметки, файлы, системная информация, медиа-контроль.
-
-    ПРАВИЛА:
-    - Если тебя просят что-то СДЕЛАТЬ — вызывай инструменты и делай. Не объясняй как — делай.
-    - При отправке сообщений контакту: 1) найди контакт (contacts → find), 2) отправь (send_telegram_message).
-    - При проблемах с интернетом: 1) проверь (reconnect_internet → check), 2) переподключи (reconnect_internet → reconnect).
-    - Если видишь имя или метку контакта — ищи через contacts.
-    - Используй system_info для вопросов о времени, дате, батарее.
-
-# Голосовой ввод (STT)
-# google — бесплатно, нужен интернет
-# faster-whisper — локально, нужен pip install faster-whisper
+# Голосовой ввод
 stt:
-  engine: "google"  # google / faster-whisper
-  model: "base"  # tiny / base / small / medium / large-v3 (для faster-whisper)
+  engine: "google"          # google (бесплатно, нужен инет) / faster-whisper (локально)
+  model: "base"             # tiny / base / small / medium / large-v3
   language: "ru"
-  device: "cpu"  # cpu / cuda (для faster-whisper)
+  device: "cpu"
 
-# Голосовой вывод (TTS)
+# Голосовой вывод
 tts:
-  engine: "edge-tts"  # edge-tts / xtts
-  # Настройки edge-tts
-  edge_voice: "ru-RU-DmitryNeural"  # Мужской русский голос
-  edge_rate: "+10%"  # Скорость речи
-  # Настройки XTTS (для клонирования голоса Джарвиса)
+  engine: "edge-tts"        # edge-tts / xtts
+  edge_voice: "ru-RU-DmitryNeural"
+  edge_rate: "+10%"
   xtts_model: "tts_models/multilingual/multi-dataset/xtts_v2"
-  xtts_speaker_wav: "models/jarvis_voice.wav"  # Аудио-референс голоса
+  xtts_speaker_wav: "models/jarvis_voice.wav"
   xtts_language: "ru"
 
-# Telegram бот
 telegram:
   enabled: false
-  bot_token: ""  # Токен от @BotFather
-  allowed_users: []  # Telegram user IDs, которым можно управлять
-  # Для отправки сообщений от имени пользователя (userbot)
-  userbot:
-    enabled: false
-    api_id: ""
-    api_hash: ""
-    phone: ""
+  bot_token: ""
+  allowed_users: []
 
-# Управление браузером
 browser:
   enabled: true
   headless: false
-  browser_type: "chromium"  # chromium / firefox
+  browser_type: "chromium"
 
-# Управление десктопом
 desktop:
   enabled: true
-  screenshot_interval: 10  # Секунды между скриншотами (0 = выкл)
+  screenshot_interval: 10
 
-# Авто-переподключение интернета
 internet:
-  enabled: true
-  check_interval: 300  # Проверять каждые N секунд (300 = 5 мин)
+  enabled: false             # выключено по умолчанию, чтобы не пинговать
+  check_interval: 300
   ping_host: "8.8.8.8"
-  wifi_ssid: ""  # Имя WiFi сети
-  wifi_password: ""  # Пароль WiFi
+  wifi_ssid: ""
+  wifi_password: ""
   captive_portal:
     enabled: false
-    url: ""  # URL страницы авторизации
+    url: ""
     username: ""
     password: ""
-    method: "POST"  # POST / GET
+    method: "POST"
+
+# Локальный HTTP-сервер с web-UI
+server:
+  host: "127.0.0.1"
+  port: 8765
+  open_browser_on_start: false

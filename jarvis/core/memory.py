@@ -1,121 +1,129 @@
-"""Память J.A.R.V.I.S. — сохранение истории и контактов."""
+"""Долговременная память Джарвиса: факты о пользователе + история диалога."""
 
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from jarvis.utils.logger import log
-
-JARVIS_DIR = Path.home() / ".jarvis"
-HISTORY_FILE = JARVIS_DIR / "conversation_history.json"
-CONTACTS_FILE = JARVIS_DIR / "contacts.json"
+from jarvis.utils.paths import CONVERSATION_FILE, MEMORY_FILE, ensure_dirs
 
 
+@dataclass
 class Memory:
-    """Долгосрочная память Джарвиса."""
+    """Сохраняемое в файл состояние памяти."""
 
-    def __init__(
-        self, max_history: int = 50, data_dir: Path | None = None,
-    ) -> None:
-        self._data_dir = data_dir or JARVIS_DIR
-        self._data_dir.mkdir(parents=True, exist_ok=True)
-        self._history_file = self._data_dir / "conversation_history.json"
-        self._contacts_file = self._data_dir / "contacts.json"
-        self.max_history = max_history
-        self._history: list[dict[str, Any]] = []
-        self._contacts: dict[str, dict[str, str]] = {}
+    facts: list[str] = field(default_factory=list)
+    preferences: dict[str, str] = field(default_factory=dict)
+
+
+class MemoryStore:
+    """Хранит факты о пользователе между сессиями.
+
+    Брейн вызывает `remember_fact` через skill, чтобы запомнить что-то полезное
+    («меня зовут Никита», «я живу в Москве», «не пингай меня по утрам»).
+    """
+
+    def __init__(self, path: Path = MEMORY_FILE) -> None:
+        self.path = path
+        self.memory = Memory()
         self._load()
 
     def _load(self) -> None:
-        """Загрузить данные из файлов."""
-        if self._history_file.exists():
-            try:
-                with open(self._history_file, encoding="utf-8") as f:
-                    data = json.load(f)
-                self._history = data.get("messages", [])
-                log.info(
-                    f"Загружена история: {len(self._history)} сообщений"
-                )
-            except (json.JSONDecodeError, OSError):
-                self._history = []
+        if not self.path.exists():
+            return
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            self.memory = Memory(
+                facts=list(data.get("facts", [])),
+                preferences=dict(data.get("preferences", {})),
+            )
+        except Exception:
+            # повреждённый файл — стартуем с чистого листа
+            self.memory = Memory()
 
-        if self._contacts_file.exists():
-            try:
-                with open(self._contacts_file, encoding="utf-8") as f:
-                    self._contacts = json.load(f)
-                log.info(f"Загружено контактов: {len(self._contacts)}")
-            except (json.JSONDecodeError, OSError):
-                self._contacts = {}
+    def _save(self) -> None:
+        ensure_dirs()
+        self.path.write_text(
+            json.dumps(
+                {"facts": self.memory.facts, "preferences": self.memory.preferences},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
-    def save_history(self, messages: list[dict[str, Any]]) -> None:
-        """Сохранить историю разговора."""
-        self._history = messages[-self.max_history:]
-        data = {
-            "messages": self._history,
-            "updated": datetime.now().isoformat(),
-        }
-        with open(self._history_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+    def add_fact(self, fact: str) -> str:
+        fact = fact.strip()
+        if not fact:
+            return "пустой факт"
+        if fact in self.memory.facts:
+            return "этот факт уже запомнен"
+        self.memory.facts.append(fact)
+        self._save()
+        return "запомнено"
 
-    def get_history(self) -> list[dict[str, Any]]:
-        """Получить сохранённую историю."""
-        return self._history.copy()
+    def remove_fact(self, fact: str) -> str:
+        before = len(self.memory.facts)
+        self.memory.facts = [
+            f for f in self.memory.facts if fact.lower() not in f.lower()
+        ]
+        self._save()
+        return f"удалено {before - len(self.memory.facts)} факт(ов)"
 
-    def clear_history(self) -> None:
-        """Очистить историю."""
-        self._history = []
-        if self._history_file.exists():
-            self._history_file.unlink()
+    def all_facts(self) -> list[str]:
+        return list(self.memory.facts)
 
-    # --- Контакты ---
+    def as_prompt_block(self) -> str:
+        """Сформировать кусочек системного промпта с запомненными фактами."""
+        if not self.memory.facts:
+            return ""
+        bullets = "\n".join(f"- {f}" for f in self.memory.facts)
+        return (
+            "Что ты помнишь о пользователе (используй это в ответах):\n"
+            f"{bullets}"
+        )
 
-    def add_contact(self, name: str, telegram_id: str, label: str = "") -> None:
-        """Добавить контакт."""
-        key = name.lower().strip()
-        self._contacts[key] = {
-            "name": name,
-            "telegram_id": telegram_id,
-            "label": label,
-            "added": datetime.now().isoformat(),
-        }
-        self._save_contacts()
+    def set_preference(self, key: str, value: str) -> None:
+        self.memory.preferences[key] = value
+        self._save()
 
-    def get_contact(self, query: str) -> dict[str, str] | None:
-        """Найти контакт по имени или метке."""
-        query_lower = query.lower().strip()
+    def get_preference(self, key: str, default: str = "") -> str:
+        return self.memory.preferences.get(key, default)
 
-        # Прямое совпадение
-        if query_lower in self._contacts:
-            return self._contacts[query_lower]
 
-        # Поиск по метке (девушка, мама, друг и т.д.)
-        for contact in self._contacts.values():
-            if contact.get("label", "").lower() == query_lower:
-                return contact
+class ConversationStore:
+    """Хранит историю диалога в JSON (для восстановления после перезапуска)."""
 
-        # Частичное совпадение
-        for key, contact in self._contacts.items():
-            if query_lower in key or query_lower in contact.get("label", "").lower():
-                return contact
+    MAX_TURNS = 200
 
-        return None
+    def __init__(self, path: Path = CONVERSATION_FILE) -> None:
+        self.path = path
 
-    def list_contacts(self) -> list[dict[str, str]]:
-        """Список всех контактов."""
-        return list(self._contacts.values())
+    def load(self) -> list[dict[str, Any]]:
+        if not self.path.exists():
+            return []
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+            return data.get("turns", []) if isinstance(data, dict) else []
+        except Exception:
+            return []
 
-    def remove_contact(self, name: str) -> bool:
-        """Удалить контакт."""
-        key = name.lower().strip()
-        if key in self._contacts:
-            del self._contacts[key]
-            self._save_contacts()
-            return True
-        return False
+    def save(self, turns: list[dict[str, Any]]) -> None:
+        ensure_dirs()
+        # Обрезаем длинную историю, сохраняем последние N
+        trimmed = turns[-self.MAX_TURNS :]
+        self.path.write_text(
+            json.dumps(
+                {"updated_at": datetime.now(timezone.utc).isoformat(), "turns": trimmed},
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
-    def _save_contacts(self) -> None:
-        with open(self._contacts_file, "w", encoding="utf-8") as f:
-            json.dump(self._contacts, f, ensure_ascii=False, indent=2)
+    def clear(self) -> None:
+        if self.path.exists():
+            self.path.unlink()

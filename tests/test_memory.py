@@ -1,56 +1,50 @@
-"""Тесты памяти J.A.R.V.I.S."""
+"""Тесты MemoryStore и ConversationStore."""
 
-import tempfile
+from __future__ import annotations
+
 from pathlib import Path
 
-from jarvis.core.memory import Memory
+from jarvis.core.memory import ConversationStore, MemoryStore
 
 
-class TestMemory:
-    """Тесты сохранения истории и контактов."""
+def test_memory_add_and_recall(tmp_path: Path) -> None:
+    store = MemoryStore(path=tmp_path / "mem.json")
+    assert store.all_facts() == []
+    assert store.add_fact("меня зовут Никита") == "запомнено"
+    assert store.add_fact("меня зовут Никита") == "этот факт уже запомнен"
+    assert "меня зовут Никита" in store.all_facts()
 
-    def setup_method(self) -> None:
-        self.tmp_dir = Path(tempfile.mkdtemp())
-        self.memory = Memory(data_dir=self.tmp_dir)
+    reloaded = MemoryStore(path=tmp_path / "mem.json")
+    assert "меня зовут Никита" in reloaded.all_facts()
 
-    def test_save_and_load_history(self) -> None:
-        messages = [
-            {"role": "user", "content": "Привет"},
-            {"role": "assistant", "content": "Здравствуйте, сэр"},
-        ]
-        self.memory.save_history(messages)
-        loaded = self.memory.get_history()
-        assert len(loaded) == 2
-        assert loaded[0]["content"] == "Привет"
 
-    def test_clear_history(self) -> None:
-        self.memory.save_history([{"role": "user", "content": "Тест"}])
-        self.memory.clear_history()
-        assert self.memory.get_history() == []
+def test_memory_remove(tmp_path: Path) -> None:
+    store = MemoryStore(path=tmp_path / "mem.json")
+    store.add_fact("я люблю Python")
+    store.add_fact("я живу в Москве")
+    store.remove_fact("Python")
+    facts = store.all_facts()
+    assert any("Москве" in f for f in facts)
+    assert not any("Python" in f for f in facts)
 
-    def test_add_contact(self) -> None:
-        self.memory.add_contact("Маша", "@masha", "девушка")
-        contact = self.memory.get_contact("маша")
-        assert contact is not None
-        assert contact["telegram_id"] == "@masha"
-        assert contact["label"] == "девушка"
 
-    def test_find_by_label(self) -> None:
-        self.memory.add_contact("Маша", "@masha", "девушка")
-        contact = self.memory.get_contact("девушка")
-        assert contact is not None
-        assert contact["name"] == "Маша"
+def test_memory_as_prompt_block(tmp_path: Path) -> None:
+    store = MemoryStore(path=tmp_path / "mem.json")
+    assert store.as_prompt_block() == ""
+    store.add_fact("факт 1")
+    block = store.as_prompt_block()
+    assert "факт 1" in block
+    assert "пользователе" in block.lower()
 
-    def test_list_contacts(self) -> None:
-        self.memory.add_contact("Маша", "@masha", "девушка")
-        self.memory.add_contact("Мама", "@mama", "мама")
-        contacts = self.memory.list_contacts()
-        assert len(contacts) == 2
 
-    def test_remove_contact(self) -> None:
-        self.memory.add_contact("Маша", "@masha")
-        assert self.memory.remove_contact("маша")
-        assert self.memory.get_contact("маша") is None
-
-    def test_contact_not_found(self) -> None:
-        assert self.memory.get_contact("несуществующий") is None
+def test_conversation_roundtrip(tmp_path: Path) -> None:
+    conv = ConversationStore(path=tmp_path / "conv.json")
+    assert conv.load() == []
+    turns = [
+        {"role": "user", "content": "привет"},
+        {"role": "assistant", "content": "слушаю"},
+    ]
+    conv.save(turns)
+    assert conv.load() == turns
+    conv.clear()
+    assert conv.load() == []

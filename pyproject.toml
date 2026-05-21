@@ -1,10 +1,10 @@
 [project]
 name = "jarvis-ai"
 version = "0.2.0"
-description = "J.A.R.V.I.S. — автономный AI-ассистент с голосовым управлением, контролем десктопа и русским языком"
+description = "J.A.R.V.I.S. — автономный AI-ассистент с голосом, чатом, контролем десктопа и поддержкой русского"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "MIT"
+license = { text = "MIT" }
 authors = [{ name = "grouvi25" }]
 
 dependencies = [
@@ -16,6 +16,14 @@ dependencies = [
     "aiohttp>=3.9.0",
     "pydub>=0.25.1",
     "rich>=13.0.0",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "websockets>=12.0",
+    "pillow>=10.0.0",
+    "pystray>=0.19.5",
+    "platformdirs>=4.0.0",
+    "psutil>=5.9.0",
+    "pyperclip>=1.8.2",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +47,9 @@ desktop = [
 all = [
     "jarvis-ai[voice,telegram,browser,desktop]",
 ]
+build = [
+    "pyinstaller>=6.5.0",
+]
 dev = [
     "ruff>=0.4.0",
     "pytest>=8.0.0",
@@ -47,9 +58,8 @@ dev = [
 
 [project.scripts]
 jarvis = "jarvis.main:main"
-
-[tool.setuptools.packages.find]
-include = ["jarvis*"]
+jarvis-app = "jarvis.app:main"
+jarvis-setup = "jarvis.core.setup_wizard:main"
 
 [tool.ruff]
 line-length = 100
@@ -58,6 +68,15 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["jarvis*"]
+
+[tool.setuptools.package-data]
+jarvis = ["ui/web/*", "ui/web/**/*", "assets/*"]

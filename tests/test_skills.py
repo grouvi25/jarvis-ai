@@ -1,126 +1,76 @@
-"""Тесты скиллов J.A.R.V.I.S."""
+"""Тесты простых скиллов (без сетевых/системных зависимостей)."""
 
-import json
-import tempfile
+from __future__ import annotations
+
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from jarvis.core.event_bus import EventBus
+from jarvis.skills.files import FilesSkill
 from jarvis.skills.notes import NotesSkill
-from jarvis.skills.timer import TimerSkill
+from jarvis.skills.time_skill import TimeSkill
 
 
-class TestNotesSkill:
-    """Тесты заметок."""
+@pytest.mark.asyncio
+async def test_files_skill_read_write(tmp_path: Path) -> None:
+    skill = FilesSkill()
+    file = tmp_path / "demo.txt"
+    res = await skill.execute(action="write", path=str(file), content="hello")
+    assert "Запись" in res or "Дозапись" in res
+    assert file.read_text() == "hello"
 
-    def setup_method(self) -> None:
-        self.tmp_dir = tempfile.mkdtemp()
-        with patch("jarvis.skills.notes.NOTES_DIR", Path(self.tmp_dir)):
-            self.skill = NotesSkill()
-            self.skill._notes_file = Path(self.tmp_dir) / "notes.json"
-            self.skill._notes = []
+    res = await skill.execute(action="read", path=str(file))
+    assert "hello" in res
 
-    @pytest.mark.asyncio
-    async def test_add_note(self) -> None:
-        result = await self.skill.execute(action="add", text="Купить молоко")
-        assert "Записано" in result
-        assert "Купить молоко" in result
-        assert len(self.skill._notes) == 1
+    res = await skill.execute(action="append", path=str(file), content=" world")
+    assert file.read_text() == "hello world"
 
-    @pytest.mark.asyncio
-    async def test_list_empty(self) -> None:
-        result = await self.skill.execute(action="list")
-        assert "пока нет" in result
+    res = await skill.execute(action="exists", path=str(file))
+    assert res == "да"
 
-    @pytest.mark.asyncio
-    async def test_list_notes(self) -> None:
-        await self.skill.execute(action="add", text="Заметка 1")
-        await self.skill.execute(action="add", text="Заметка 2")
-        result = await self.skill.execute(action="list")
-        assert "Заметка 1" in result
-        assert "Заметка 2" in result
-        assert "(2)" in result
+    res = await skill.execute(action="exists", path=str(tmp_path / "nope"))
+    assert res == "нет"
 
-    @pytest.mark.asyncio
-    async def test_delete_by_number(self) -> None:
-        await self.skill.execute(action="add", text="Удали меня")
-        result = await self.skill.execute(action="delete", text="1")
-        assert "Удалено" in result
-        assert len(self.skill._notes) == 0
-
-    @pytest.mark.asyncio
-    async def test_delete_by_text(self) -> None:
-        await self.skill.execute(action="add", text="Купить хлеб")
-        await self.skill.execute(action="add", text="Позвонить маме")
-        result = await self.skill.execute(action="delete", text="хлеб")
-        assert "Удалено" in result
-        assert len(self.skill._notes) == 1
-
-    @pytest.mark.asyncio
-    async def test_search(self) -> None:
-        await self.skill.execute(action="add", text="Купить молоко")
-        await self.skill.execute(action="add", text="Купить хлеб")
-        await self.skill.execute(action="add", text="Позвонить маме")
-        result = await self.skill.execute(action="search", text="купить")
-        assert "Найдено (2)" in result
-        assert "молоко" in result
-        assert "хлеб" in result
-        assert "маме" not in result
-
-    @pytest.mark.asyncio
-    async def test_add_empty(self) -> None:
-        result = await self.skill.execute(action="add", text="")
-        assert "Не указан" in result
-
-    @pytest.mark.asyncio
-    async def test_persistence(self) -> None:
-        await self.skill.execute(action="add", text="Тестовая заметка")
-        assert self.skill._notes_file.exists()
-        with open(self.skill._notes_file, encoding="utf-8") as f:
-            saved = json.load(f)
-        assert len(saved) == 1
-        assert saved[0]["text"] == "Тестовая заметка"
+    res = await skill.execute(action="list", path=str(tmp_path))
+    assert "demo.txt" in res
 
 
-class TestTimerSkill:
-    """Тесты таймеров."""
+@pytest.mark.asyncio
+async def test_files_skill_search(tmp_path: Path) -> None:
+    (tmp_path / "a.txt").write_text("x")
+    (tmp_path / "b.md").write_text("x")
+    skill = FilesSkill()
+    res = await skill.execute(action="search", path=str(tmp_path), pattern="*.txt")
+    assert "a.txt" in res
+    assert "b.md" not in res
 
-    def setup_method(self) -> None:
-        self.bus = EventBus()
-        self.skill = TimerSkill(self.bus)
 
-    @pytest.mark.asyncio
-    async def test_set_timer(self) -> None:
-        result = await self.skill.execute(
-            seconds=5, message="Чай готов!", label="чай"
-        )
-        assert "чай" in result
-        assert "5 сек" in result
-        assert "чай" in self.skill._active_timers
+@pytest.mark.asyncio
+async def test_time_skill_now() -> None:
+    skill = TimeSkill()
+    res = await skill.execute(action="now")
+    assert "Сейчас" in res
 
-    @pytest.mark.asyncio
-    async def test_timer_format_minutes(self) -> None:
-        result = await self.skill.execute(
-            seconds=90, message="Тест"
-        )
-        assert "1 мин 30 сек" in result
 
-    @pytest.mark.asyncio
-    async def test_timer_format_hours(self) -> None:
-        result = await self.skill.execute(
-            seconds=3661, message="Тест"
-        )
-        assert "1 ч 1 мин" in result
+@pytest.mark.asyncio
+async def test_notes_skill_remember_recall(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Перенаправляем хранилище памяти в tmp_path
+    import jarvis.utils.paths as paths
 
-    @pytest.mark.asyncio
-    async def test_zero_seconds(self) -> None:
-        result = await self.skill.execute(seconds=0, message="Тест")
-        assert "положительное" in result
+    monkeypatch.setattr(paths, "MEMORY_FILE", tmp_path / "mem.json")
+    monkeypatch.setattr(paths, "NOTES_FILE", tmp_path / "notes.json")
 
-    @pytest.mark.asyncio
-    async def test_timer_properties(self) -> None:
-        assert self.skill.name == "set_timer"
-        assert "таймер" in self.skill.description
-        assert "seconds" in self.skill.parameters["properties"]
+    from jarvis.core.memory import MemoryStore  # импорт после monkeypatch
+
+    memory = MemoryStore(path=tmp_path / "mem.json")
+    skill = NotesSkill(memory=memory)
+    res = await skill.execute(action="remember", text="меня зовут Тест")
+    assert "Запомнил" in res
+
+    res = await skill.execute(action="recall")
+    assert "Тест" in res
+
+    res = await skill.execute(action="add_note", text="купить кофе")
+    assert "Заметка добавлена" in res
+    res = await skill.execute(action="list_notes")
+    assert "купить кофе" in res

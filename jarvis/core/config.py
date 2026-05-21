@@ -1,16 +1,27 @@
-"""Управление конфигурацией J.A.R.V.I.S."""
+"""Управление конфигурацией J.A.R.V.I.S.
+
+Порядок поиска конфига:
+1. Bundled `config/config.yaml` в репозитории — дефолты.
+2. `~/.config/jarvis/config.yaml` (или эквивалент OS) — пользовательский.
+3. `~/.config/jarvis/secrets.yaml` — секреты (API-ключи, пароли).
+4. Переменные окружения с префиксом `JARVIS_` — высший приоритет.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import os
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_CONFIG = PROJECT_ROOT / "config" / "config.yaml"
-LOCAL_CONFIG = PROJECT_ROOT / "config" / "local.yaml"
+from jarvis.utils.paths import (
+    BUNDLED_CONFIG,
+    CONFIG_FILE,
+    SECRETS_FILE,
+    ensure_dirs,
+)
 
 
 @dataclass
@@ -82,11 +93,22 @@ class InternetConfig:
 
 
 @dataclass
+class ServerConfig:
+    """Локальный HTTP/WebSocket сервер для веб-UI."""
+
+    host: str = "127.0.0.1"
+    port: int = 8765
+    open_browser_on_start: bool = False
+
+
+@dataclass
 class JarvisConfig:
     language: str = "ru"
     wake_words: list[str] = field(default_factory=lambda: ["джарвис", "jarvis"])
     name: str = "Джарвис"
     master_name: str = "сэр"
+    voice_enabled: bool = True
+    autostart: bool = False
     llm: LLMConfig = field(default_factory=LLMConfig)
     stt: STTConfig = field(default_factory=STTConfig)
     tts: TTSConfig = field(default_factory=TTSConfig)
@@ -94,11 +116,14 @@ class JarvisConfig:
     browser: BrowserConfig = field(default_factory=BrowserConfig)
     desktop: DesktopConfig = field(default_factory=DesktopConfig)
     internet: InternetConfig = field(default_factory=InternetConfig)
+    server: ServerConfig = field(default_factory=ServerConfig)
 
+
+# ---------- Helpers ----------
 
 def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
-    """Рекурсивное слияние словарей."""
-    result = base.copy()
+    """Рекурсивное слияние словарей (override побеждает)."""
+    result = dict(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge(result[key], value)
@@ -107,97 +132,131 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return result
 
 
-def _dict_to_config(data: dict[str, Any]) -> JarvisConfig:
-    """Преобразовать словарь в JarvisConfig."""
-    general = data.get("general", {})
-    llm_data = data.get("llm", {})
-    stt_data = data.get("stt", {})
-    tts_data = data.get("tts", {})
-    telegram_data = data.get("telegram", {})
-    browser_data = data.get("browser", {})
-    desktop_data = data.get("desktop", {})
-    internet_data = data.get("internet", {})
+def _load_yaml(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
-    captive_data = internet_data.pop("captive_portal", {})
-    if "captive_portal" not in internet_data:
-        captive_data = captive_data or {}
+
+def _filter(cls: type, data: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+
+
+def _dict_to_config(data: dict[str, Any]) -> JarvisConfig:
+    general = data.get("general", {})
+    internet_data = dict(data.get("internet", {}))
+    captive_data = internet_data.pop("captive_portal", {}) or {}
 
     return JarvisConfig(
         language=general.get("language", "ru"),
         wake_words=general.get("wake_words", ["джарвис", "jarvis"]),
         name=general.get("name", "Джарвис"),
         master_name=general.get("master_name", "сэр"),
-        llm=LLMConfig(**{k: v for k, v in llm_data.items() if k in LLMConfig.__dataclass_fields__}),
-        stt=STTConfig(**{k: v for k, v in stt_data.items() if k in STTConfig.__dataclass_fields__}),
-        tts=TTSConfig(**{k: v for k, v in tts_data.items() if k in TTSConfig.__dataclass_fields__}),
+        voice_enabled=general.get("voice_enabled", True),
+        autostart=general.get("autostart", False),
+        llm=LLMConfig(**_filter(LLMConfig, data.get("llm", {}))),
+        stt=STTConfig(**_filter(STTConfig, data.get("stt", {}))),
+        tts=TTSConfig(**_filter(TTSConfig, data.get("tts", {}))),
         telegram=TelegramConfig(
-            **{k: v for k, v in telegram_data.items() if k in TelegramConfig.__dataclass_fields__}
+            **_filter(TelegramConfig, data.get("telegram", {})),
         ),
         browser=BrowserConfig(
-            **{k: v for k, v in browser_data.items() if k in BrowserConfig.__dataclass_fields__}
+            **_filter(BrowserConfig, data.get("browser", {})),
         ),
         desktop=DesktopConfig(
-            **{k: v for k, v in desktop_data.items() if k in DesktopConfig.__dataclass_fields__}
+            **_filter(DesktopConfig, data.get("desktop", {})),
         ),
         internet=InternetConfig(
-            **{k: v for k, v in internet_data.items() if k in InternetConfig.__dataclass_fields__},
+            **_filter(InternetConfig, internet_data),
             captive_portal=CaptivePortalConfig(
-                **{k: v for k, v in captive_data.items()
-                  if k in CaptivePortalConfig.__dataclass_fields__}
+                **_filter(CaptivePortalConfig, captive_data),
             ),
         ),
+        server=ServerConfig(**_filter(ServerConfig, data.get("server", {}))),
     )
 
 
 def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
-    """Переопределить конфиг значениями из переменных окружения / .env."""
-    import os
-
-    env_file = PROJECT_ROOT / ".env"
-    if env_file.exists():
-        with open(env_file, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    key, _, value = line.partition("=")
-                    value = value.strip().strip("\"'")
-                    os.environ.setdefault(key.strip(), value)
-
-    env_map = {
-        "JARVIS_LLM_API_KEY": ("llm", "api_key"),
+    """Переопределить через переменные окружения JARVIS_*."""
+    env = os.environ
+    mapping = {
+        "JARVIS_LLM_PROVIDER": ("llm", "provider"),
         "JARVIS_LLM_MODEL": ("llm", "model"),
         "JARVIS_LLM_BASE_URL": ("llm", "base_url"),
-        "JARVIS_LLM_PROVIDER": ("llm", "provider"),
+        "JARVIS_LLM_API_KEY": ("llm", "api_key"),
         "JARVIS_TELEGRAM_TOKEN": ("telegram", "bot_token"),
-        "JARVIS_WIFI_SSID": ("internet", "wifi_ssid"),
-        "JARVIS_WIFI_PASSWORD": ("internet", "wifi_password"),
+        "JARVIS_TELEGRAM_ENABLED": ("telegram", "enabled"),
+        "JARVIS_SERVER_HOST": ("server", "host"),
+        "JARVIS_SERVER_PORT": ("server", "port"),
+        "JARVIS_VOICE_ENABLED": ("general", "voice_enabled"),
     }
-
-    for env_key, (section, field_name) in env_map.items():
-        value = os.environ.get(env_key)
-        if value:
-            if section not in data:
-                data[section] = {}
-            data[section][field_name] = value
-
-    return data
+    out = dict(data)
+    for var, (section, key) in mapping.items():
+        if var not in env:
+            continue
+        val: Any = env[var]
+        if val.lower() in ("true", "false"):
+            val = val.lower() == "true"
+        else:
+            try:
+                if "." in val:
+                    val = float(val)
+                else:
+                    val = int(val)
+            except ValueError:
+                pass
+        out.setdefault(section, {})[key] = val
+    return out
 
 
 def load_config() -> JarvisConfig:
-    """Загрузить конфигурацию из YAML-файлов + .env + переменных окружения."""
+    """Загрузить конфиг с учётом всех источников."""
+    ensure_dirs()
     data: dict[str, Any] = {}
 
-    if DEFAULT_CONFIG.exists():
-        with open(DEFAULT_CONFIG, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
+    if BUNDLED_CONFIG.exists():
+        data = _deep_merge(data, _load_yaml(BUNDLED_CONFIG))
 
-    if LOCAL_CONFIG.exists():
-        with open(LOCAL_CONFIG, encoding="utf-8") as f:
-            local_data = yaml.safe_load(f) or {}
-            data = _deep_merge(data, local_data)
+    if CONFIG_FILE.exists():
+        data = _deep_merge(data, _load_yaml(CONFIG_FILE))
+
+    if SECRETS_FILE.exists():
+        data = _deep_merge(data, _load_yaml(SECRETS_FILE))
 
     data = _apply_env_overrides(data)
-
     return _dict_to_config(data)
+
+
+def save_config(config: JarvisConfig, *, target: Path | None = None) -> Path:
+    """Сохранить конфиг в YAML. По умолчанию — в пользовательский каталог."""
+    ensure_dirs()
+    path = target or CONFIG_FILE
+
+    data = {
+        "general": {
+            "language": config.language,
+            "wake_words": config.wake_words,
+            "name": config.name,
+            "master_name": config.master_name,
+            "voice_enabled": config.voice_enabled,
+            "autostart": config.autostart,
+        },
+        "llm": asdict(config.llm),
+        "stt": asdict(config.stt),
+        "tts": asdict(config.tts),
+        "telegram": asdict(config.telegram),
+        "browser": asdict(config.browser),
+        "desktop": asdict(config.desktop),
+        "internet": asdict(config.internet),
+        "server": asdict(config.server),
+    }
+
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+    return path
+
+
+def is_first_run() -> bool:
+    """Запущен ли Джарвис впервые (нет пользовательского конфига)."""
+    return not CONFIG_FILE.exists()
