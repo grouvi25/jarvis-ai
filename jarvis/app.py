@@ -37,6 +37,7 @@ from jarvis.skills.web_search import WebSearchSkill
 from jarvis.ui.server import create_app, find_free_port
 from jarvis.ui.tray import JarvisTray
 from jarvis.utils import autostart, platform as plat
+from jarvis.utils.audio import configure_pydub
 from jarvis.utils.logger import log
 from jarvis.utils.paths import ensure_dirs
 from jarvis.voice.speaker import Speaker
@@ -138,6 +139,7 @@ class JarvisApp:
     async def run(self) -> None:
         self._loop = asyncio.get_event_loop()
         ensure_dirs()
+        configure_pydub()
 
         # 1. Сервер
         port = find_free_port(self.config.server.host, self.config.server.port)

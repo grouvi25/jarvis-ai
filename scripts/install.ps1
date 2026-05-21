@@ -51,8 +51,9 @@ $VenvPip = Join-Path $Venv "Scripts\pip.exe"
 $Here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $Here
 if (Test-Path (Join-Path $RepoRoot "pyproject.toml")) {
-    Info "Устанавливаю локальный пакет из $RepoRoot"
-    & $VenvPip install -e $RepoRoot
+    Info "Устанавливаю Jarvis (со всеми экстрами) из $RepoRoot"
+    & $VenvPip install -e "$RepoRoot[all]"
+    $Src = $RepoRoot
 } else {
     Info "Клонирую репозиторий"
     if (-not (Test-Path (Join-Path $Install "src"))) {
@@ -60,13 +61,18 @@ if (Test-Path (Join-Path $RepoRoot "pyproject.toml")) {
     } else {
         Push-Location (Join-Path $Install "src"); git pull; Pop-Location
     }
-    & $VenvPip install -e (Join-Path $Install "src")
+    $Src = Join-Path $Install "src"
+    & $VenvPip install -e "$Src[all]"
 }
 
-$Ans = Read-Host "Установить голосовой режим (voice extras)? [y/N]"
-if ($Ans -match '^[yY]') { & $VenvPip install -e "$RepoRoot[voice]" }
-$Ans = Read-Host "Установить управление десктопом (pyautogui)? [y/N]"
-if ($Ans -match '^[yY]') { & $VenvPip install -e "$RepoRoot[desktop]" }
+# 4b. Playwright Chromium (для browser_action скилла)
+Info "Качаю Chromium для Playwright (нужно один раз)"
+try {
+    & $VenvPy -m playwright install chromium
+    Ok "Playwright Chromium установлен"
+} catch {
+    Info "Не удалось поставить Chromium — скилл browser_action не будет работать (это ок)"
+}
 
 # 5. Ярлыки
 $AppExe = Join-Path $Venv "Scripts\jarvis-app.exe"

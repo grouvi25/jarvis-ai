@@ -52,20 +52,20 @@ pip install --upgrade pip wheel >/dev/null
 # 4. Источник
 if [ -f "$(dirname "$0")/../pyproject.toml" ]; then
     SRC="$(cd "$(dirname "$0")/.." && pwd)"
-    info "Устанавливаю из локального репо: $SRC"
-    pip install -e "$SRC"
+    info "Устанавливаю Jarvis (со всеми экстрами) из $SRC"
+    pip install -e "$SRC[all]"
 else
     info "Клонирую $REPO_URL"
     git -C "$INSTALL_DIR" clone "$REPO_URL" src 2>/dev/null || (cd "$INSTALL_DIR/src" && git pull)
-    pip install -e "$INSTALL_DIR/src"
     SRC="$INSTALL_DIR/src"
+    pip install -e "$SRC[all]"
 fi
 
-# Опционально: voice/desktop extras
-read -r -p "Установить голосовой режим (voice extras)? [y/N] " ANSWER || ANSWER=n
-case "$ANSWER" in [yY]*) pip install -e "$SRC[voice]" ;; esac
-read -r -p "Установить управление десктопом (pyautogui)? [y/N] " ANSWER || ANSWER=n
-case "$ANSWER" in [yY]*) pip install -e "$SRC[desktop]" ;; esac
+# 4b. Playwright Chromium (для browser_action скилла) — один раз
+info "Качаю Chromium для Playwright"
+if ! python -m playwright install chromium 2>/dev/null; then
+    info "Не удалось поставить Chromium — скилл browser_action работать не будет (это ок)"
+fi
 
 # 5. Launcher
 LAUNCHER="$BIN_DIR/jarvis-app"

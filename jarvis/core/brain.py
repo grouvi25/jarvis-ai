@@ -11,6 +11,7 @@ from jarvis.core.config import JarvisConfig
 from jarvis.core.event_bus import Event, EventBus, EventType
 from jarvis.core.memory import ConversationStore, MemoryStore
 from jarvis.skills.base import Skill
+from jarvis.utils import platform as plat
 from jarvis.utils.logger import log
 
 
@@ -65,12 +66,35 @@ class Brain:
         skills_info = "\n".join(
             f"- {s.name}: {s.description}" for s in self.skills.values()
         )
-        parts = [base]
+        parts = [base, self._os_context()]
         if memory_block:
             parts.append(memory_block)
         if skills_info:
             parts.append(f"Доступные инструменты:\n{skills_info}")
         return "\n\n".join(parts)
+
+    def _os_context(self) -> str:
+        """Дать LLM знать, какую ОС/shell использовать при run_command."""
+        if plat.is_windows():
+            return (
+                "Окружение: Windows. shell — PowerShell. "
+                "Используй PowerShell/cmd команды (не bash/Linux). "
+                "Громкость: nircmd.exe или [Audio]::SetVolume. "
+                "Менеджер пакетов: winget. "
+                "Пути с обратными слешами. "
+                "НИКОГДА не используй amixer, apt, xdg-open, killall, ls — это команды Linux."
+            )
+        if plat.is_macos():
+            return (
+                "Окружение: macOS. shell — zsh/bash. "
+                "Громкость: osascript. Менеджер пакетов: brew. "
+                "Открыть файл/URL: open."
+            )
+        return (
+            "Окружение: Linux. shell — bash. "
+            "Громкость: amixer/pactl. Открыть файл/URL: xdg-open. "
+            "Менеджер пакетов: apt/dnf/pacman."
+        )
 
     # ---------- main think loop ----------
 

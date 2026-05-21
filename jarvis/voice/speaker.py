@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from jarvis.core.event_bus import Event, EventBus, EventType
+from jarvis.utils.audio import play_audio_bytes
 from jarvis.utils.logger import log
 
 if TYPE_CHECKING:
@@ -61,14 +62,12 @@ class Speaker:
             rate=self.config.edge_rate,
         )
 
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp_path = tmp.name
+        audio_bytes = bytearray()
+        async for chunk in communicate.stream():
+            if chunk.get("type") == "audio":
+                audio_bytes.extend(chunk["data"])
 
-        await communicate.save(tmp_path)
-        try:
-            await self._play_audio(tmp_path)
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
+        await play_audio_bytes(bytes(audio_bytes), input_format="mp3")
 
     async def _speak_xtts(self, text: str) -> None:
         if self._xtts_model is None:
@@ -93,9 +92,9 @@ class Speaker:
             await self._speak_edge(text)
             return
 
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp_path = tmp.name
-
+        # XTTS пишет в файл — используем tempfile, читаем байты, удаляем.
+        tmp_dir = Path(tempfile.gettempdir())
+        tmp_path = tmp_dir / f"jarvis_xtts_{id(text)}.wav"
         loop = asyncio.get_event_loop()
         try:
             await loop.run_in_executor(
@@ -104,35 +103,16 @@ class Speaker:
                     text=text,
                     speaker_wav=speaker_wav,
                     language=self.config.xtts_language,
-                    file_path=tmp_path,
+                    file_path=str(tmp_path),
                 ),
             )
-            await self._play_audio(tmp_path)
+            audio_bytes = tmp_path.read_bytes()
+            await play_audio_bytes(audio_bytes, input_format="wav")
         finally:
-            Path(tmp_path).unlink(missing_ok=True)
-
-    async def _play_audio(self, file_path: str) -> None:
-        try:
-            from pydub import AudioSegment
-            from pydub.playback import play as pydub_play
-
-            loop = asyncio.get_event_loop()
-            audio = await loop.run_in_executor(
-                None,
-                lambda: AudioSegment.from_file(file_path),
-            )
-            await loop.run_in_executor(None, pydub_play, audio)
-        except Exception:
-            # Fallback: ffplay
             try:
-                process = await asyncio.create_subprocess_exec(
-                    "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", file_path,
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL,
-                )
-                await process.wait()
-            except FileNotFoundError:
-                log.warning("ffplay не найден — аудио не воспроизведено")
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     @property
     def is_speaking(self) -> bool:
