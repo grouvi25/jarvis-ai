@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import signal
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -13,10 +14,18 @@ from rich.text import Text
 from jarvis.core.brain import Brain
 from jarvis.core.config import load_config
 from jarvis.core.event_bus import Event, EventBus, EventType
+from jarvis.core.memory import Memory
 from jarvis.skills.browser import BrowserSkill
+from jarvis.skills.contacts import ContactsSkill
 from jarvis.skills.desktop import DesktopControlSkill
+from jarvis.skills.file_manager import FileManagerSkill
 from jarvis.skills.internet import InternetReconnectSkill
+from jarvis.skills.media import MediaControlSkill
 from jarvis.skills.messenger import TelegramMessengerSkill
+from jarvis.skills.notes import NotesSkill
+from jarvis.skills.system_info import SystemInfoSkill
+from jarvis.skills.timer import TimerSkill
+from jarvis.skills.weather import WeatherSkill
 from jarvis.utils.logger import log
 from jarvis.voice.speaker import Speaker
 
@@ -29,7 +38,7 @@ BANNER = r"""
   ██   ██║██╔══██║██╔══██╗╚██╗ ██╔╝██║╚════██║
   ╚█████╔╝██║  ██║██║  ██║ ╚████╔╝ ██║███████║
    ╚════╝ ╚═╝  ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝
-  Just A Rather Very Intelligent System  v0.1.0
+  Just A Rather Very Intelligent System  v0.2.0
 """
 
 
@@ -110,38 +119,108 @@ async def run_voice_mode(
         wake_detector.stop()
 
 
+def _load_plugins(
+    brain: Brain, config: object, event_bus: EventBus, memory: object
+) -> None:
+    """Загрузить пользовательские плагины из ~/.jarvis/plugins/."""
+    import importlib.util
+
+    plugins_dir = Path.home() / ".jarvis" / "plugins"
+    if not plugins_dir.exists():
+        plugins_dir.mkdir(parents=True, exist_ok=True)
+        return
+
+    for plugin_file in sorted(plugins_dir.glob("*.py")):
+        try:
+            spec = importlib.util.spec_from_file_location(
+                plugin_file.stem, plugin_file
+            )
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)  # type: ignore[union-attr]
+                if hasattr(module, "register"):
+                    module.register(brain, config, event_bus, memory)
+                    log.info(f"Плагин загружен: {plugin_file.name}")
+        except Exception as e:
+            log.error(f"Ошибка загрузки плагина {plugin_file.name}: {e}")
+
+
+def _parse_args() -> object:
+    """Разобрать аргументы командной строки."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="jarvis",
+        description="J.A.R.V.I.S. — персональный AI-ассистент",
+    )
+    parser.add_argument(
+        "--text", action="store_true",
+        help="Текстовый режим (без микрофона)",
+    )
+    parser.add_argument(
+        "--voice", action="store_true",
+        help="Голосовой режим (нужен микрофон)",
+    )
+    parser.add_argument(
+        "--clear-history", action="store_true",
+        help="Очистить историю разговоров",
+    )
+    parser.add_argument(
+        "--version", action="version", version="J.A.R.V.I.S. v0.2.0",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     """Главная точка входа."""
+    args = _parse_args()
     console.print(Panel(Text(BANNER, style="bold cyan"), border_style="blue"))
 
     config = load_config()
     event_bus = EventBus()
 
-    # Инициализация мозга
-    brain = Brain(config, event_bus)
+    # Инициализация памяти и мозга
+    memory = Memory()
+    brain = Brain(config, event_bus, memory)
     speaker = Speaker(config.tts, event_bus)
 
     # Регистрация скиллов
-    messenger = TelegramMessengerSkill(config)
-    browser = BrowserSkill(config)
-    desktop = DesktopControlSkill()
-    internet = InternetReconnectSkill(config.internet, event_bus)
+    skills = [
+        TelegramMessengerSkill(config),
+        BrowserSkill(config),
+        DesktopControlSkill(),
+        InternetReconnectSkill(config.internet, event_bus),
+        WeatherSkill(),
+        TimerSkill(event_bus),
+        NotesSkill(),
+        ContactsSkill(memory),
+        SystemInfoSkill(),
+        FileManagerSkill(),
+        MediaControlSkill(),
+    ]
 
-    brain.register_skill(messenger)
-    brain.register_skill(browser)
-    brain.register_skill(desktop)
-    brain.register_skill(internet)
+    for skill in skills:
+        brain.register_skill(skill)
+
+    # Загрузка плагинов из ~/.jarvis/plugins/
+    _load_plugins(brain, config, event_bus, memory)
+
+    # Очистка истории если запрошено
+    if args.clear_history:
+        memory.clear_history()
+        console.print("[yellow]История разговоров очищена[/yellow]")
 
     log.info(f"Язык: {config.language}")
     log.info(f"LLM: {config.llm.provider} / {config.llm.model}")
     log.info(f"STT: {config.stt.engine} ({config.stt.model})")
     log.info(f"TTS: {config.tts.engine}")
+    log.info(f"Скиллов: {len(brain.skills)}")
 
     # Определяем режим
     mode = "text"
-    if "--voice" in sys.argv:
+    if args.voice:
         mode = "voice"
-    elif "--text" in sys.argv:
+    elif args.text:
         mode = "text"
     else:
         # Пробуем определить автоматически
@@ -162,8 +241,9 @@ def main() -> None:
         tasks: list[asyncio.Task[None]] = []
 
         # Фоновый мониторинг интернета
-        if config.internet.enabled:
-            tasks.append(asyncio.create_task(internet.start_monitoring()))
+        internet_skill = brain.skills.get("reconnect_internet")
+        if config.internet.enabled and internet_skill:
+            tasks.append(asyncio.create_task(internet_skill.start_monitoring()))
 
         if mode == "voice":
             await run_voice_mode(brain, speaker, event_bus, config)
@@ -176,7 +256,6 @@ def main() -> None:
         await event_bus.emit(Event(type=EventType.SHUTDOWN))
         for task in tasks:
             task.cancel()
-        await browser.close()
 
     def handle_signal(sig: int, frame: object) -> None:
         console.print(f"\n[yellow]{config.name}: До свидания, {config.master_name}![/yellow]")
