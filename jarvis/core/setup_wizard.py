@@ -14,7 +14,6 @@ from jarvis.core.config import JarvisConfig, load_config, save_config
 from jarvis.utils import autostart
 from jarvis.utils.paths import ensure_dirs
 
-
 WELCOME = """
        ██╗ █████╗ ██████╗ ██╗   ██╗██╗███████╗
        ██║██╔══██╗██╔══██╗██║   ██║██║██╔════╝

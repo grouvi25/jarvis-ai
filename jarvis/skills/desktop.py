@@ -13,7 +13,6 @@ from jarvis.utils import platform as plat
 from jarvis.utils.logger import log
 from jarvis.utils.paths import SCREENSHOT_DIR, ensure_dirs
 
-
 DANGEROUS_PATTERNS = (
     "rm -rf /", "rm -rf ~", "mkfs", "dd if=", ":(){", "fork bomb",
     "del /f /s /q c:\\", "format c:", "shutdown /s",
@@ -52,8 +51,14 @@ class DesktopControlSkill(Skill):
                         "lock", "shutdown", "notify",
                     ],
                 },
-                "command": {"type": "string", "description": "Команда, имя приложения, путь, текст или title уведомления"},
-                "value": {"type": "string", "description": "Доп. значение: уровень громкости, hotkey, сообщение"},
+                "command": {
+                    "type": "string",
+                    "description": "Команда, имя приложения, путь, текст или title",
+                },
+                "value": {
+                    "type": "string",
+                    "description": "Доп. значение: громкость, hotkey, сообщение",
+                },
             },
             "required": ["action"],
         }
@@ -171,7 +176,10 @@ class DesktopControlSkill(Skill):
             if plat.is_linux():
                 for tool in ("scrot", "gnome-screenshot", "import"):
                     if plat.has_command(tool):
-                        cmd = [tool, str(path)] if tool == "scrot" else [tool, "-window", "root", str(path)]
+                        if tool == "scrot":
+                            cmd = [tool, str(path)]
+                        else:
+                            cmd = [tool, "-window", "root", str(path)]
                         if tool == "gnome-screenshot":
                             cmd = ["gnome-screenshot", "-f", str(path)]
                         try:
@@ -264,10 +272,11 @@ class DesktopControlSkill(Skill):
             subprocess.Popen(["rundll32.exe", "user32.dll,LockWorkStation"])
             return "Заблокировано"
         if plat.is_macos():
-            subprocess.Popen([
-                "osascript", "-e",
-                'tell application "System Events" to keystroke "q" using {control down, command down}',
-            ])
+            lock_script = (
+                'tell application "System Events" to keystroke'
+                ' "q" using {control down, command down}'
+            )
+            subprocess.Popen(["osascript", "-e", lock_script])
             return "Заблокировано"
         # Linux: xdg-screensaver или loginctl
         for cmd in (

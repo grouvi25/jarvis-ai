@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect

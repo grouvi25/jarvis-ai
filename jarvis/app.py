@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import signal
-import sys
 from typing import Any
 
 from jarvis.core.brain import Brain
@@ -26,6 +25,7 @@ from jarvis.core.config import (
 from jarvis.core.event_bus import Event, EventBus, EventType
 from jarvis.skills.browser import BrowserSkill
 from jarvis.skills.clipboard import ClipboardSkill
+from jarvis.skills.contacts import ContactsSkill
 from jarvis.skills.desktop import DesktopControlSkill
 from jarvis.skills.files import FilesSkill
 from jarvis.skills.internet import InternetReconnectSkill
@@ -36,7 +36,8 @@ from jarvis.skills.time_skill import TimeSkill
 from jarvis.skills.web_search import WebSearchSkill
 from jarvis.ui.server import create_app, find_free_port
 from jarvis.ui.tray import JarvisTray
-from jarvis.utils import autostart, platform as plat
+from jarvis.utils import autostart
+from jarvis.utils import platform as plat
 from jarvis.utils.logger import log
 from jarvis.utils.paths import ensure_dirs
 from jarvis.voice.speaker import Speaker
@@ -54,6 +55,7 @@ def register_all_skills(brain: Brain, config: JarvisConfig, event_bus: EventBus)
     brain.register_skill(BrowserSkill(config))
     brain.register_skill(InternetReconnectSkill(config.internet, event_bus))
     brain.register_skill(TelegramMessengerSkill(config))
+    brain.register_skill(ContactsSkill())
 
 
 class JarvisApp:
