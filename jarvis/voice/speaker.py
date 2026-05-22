@@ -113,6 +113,18 @@ class Speaker:
             Path(tmp_path).unlink(missing_ok=True)
 
     async def _play_audio(self, file_path: str) -> None:
+        # 1. Bundled ffmpeg → sounddevice (без внешних бинарей)
+        try:
+            from jarvis.utils.audio import play_audio_bytes
+
+            audio_bytes = Path(file_path).read_bytes()
+            suffix = Path(file_path).suffix.lstrip(".")
+            await play_audio_bytes(audio_bytes, input_format=suffix or "mp3")
+            return
+        except Exception:
+            pass
+
+        # 2. pydub (нужен ffmpeg/ffplay в PATH)
         try:
             from pydub import AudioSegment
             from pydub.playback import play as pydub_play
@@ -123,17 +135,21 @@ class Speaker:
                 lambda: AudioSegment.from_file(file_path),
             )
             await loop.run_in_executor(None, pydub_play, audio)
+            return
         except Exception:
-            # Fallback: ffplay
-            try:
-                process = await asyncio.create_subprocess_exec(
-                    "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", file_path,
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL,
-                )
-                await process.wait()
-            except FileNotFoundError:
-                log.warning("ffplay не найден — аудио не воспроизведено")
+            pass
+
+        # 3. ffplay напрямую
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet",
+                file_path,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await process.wait()
+        except FileNotFoundError:
+            log.warning("Аудио не воспроизведено — установите ffmpeg или sounddevice")
 
     @property
     def is_speaking(self) -> bool:
