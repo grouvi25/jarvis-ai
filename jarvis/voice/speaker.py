@@ -59,6 +59,7 @@ class Speaker:
             text,
             voice=self.config.edge_voice,
             rate=self.config.edge_rate,
+            pitch=self.config.edge_pitch,
         )
 
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:

@@ -7,7 +7,6 @@ import queue
 from typing import TYPE_CHECKING
 
 import numpy as np
-import sounddevice as sd
 
 from jarvis.core.event_bus import Event, EventBus, EventType
 from jarvis.utils.logger import log
@@ -19,9 +18,13 @@ if TYPE_CHECKING:
 class WakeWordDetector:
     """Слушает wake word и активирует запись речи.
 
-    Два режима:
-    1. openwakeword — нейросетевой детектор (рекомендуется)
-    2. keyword — простой поиск ключевого слова в транскрипции (fallback)
+    Три режима (выбирается автоматически):
+    1. openwakeword — нейросетевой детектор (если установлен, для "Hey Jarvis")
+    2. keyword — поиск ключевого слова в транскрипции (основной для русского "Джарвис")
+    3. always_on — без wake word, всегда слушает (для отладки)
+
+    Для русского языка рекомендуется keyword-режим, т.к. openwakeword
+    поддерживает только английский "Hey Jarvis".
     """
 
     def __init__(self, config: JarvisConfig, event_bus: EventBus) -> None:
@@ -32,10 +35,23 @@ class WakeWordDetector:
         self._oww_model = None
         self._audio_queue: queue.Queue[np.ndarray] = queue.Queue()
         self._sample_rate = 16000
-        self._chunk_size = 1280  # openwakeword ожидает чанки по 80мс при 16кГц
+        self._chunk_size = 1280
+
+    def _has_russian_wake_words(self) -> bool:
+        """Проверяем, есть ли русские wake words."""
+        for word in self.wake_words:
+            if any("\u0400" <= ch <= "\u04ff" for ch in word):
+                return True
+        return False
 
     def _try_load_openwakeword(self) -> bool:
         """Попробовать загрузить openwakeword."""
+        if self._has_russian_wake_words():
+            log.info(
+                "Русские wake words обнаружены — openwakeword их не поддерживает, "
+                "используем keyword-режим (распознавание через STT)"
+            )
+            return False
         try:
             import openwakeword
             from openwakeword.model import Model
@@ -56,7 +72,7 @@ class WakeWordDetector:
         indata: np.ndarray,
         frames: int,
         time_info: object,
-        status: sd.CallbackFlags,
+        status: object,
     ) -> None:
         if status:
             log.warning(f"Аудио: {status}")
@@ -74,6 +90,8 @@ class WakeWordDetector:
 
     async def _listen_openwakeword(self) -> None:
         """Детекция через openwakeword (нейросеть)."""
+        import sounddevice as sd
+
         stream = sd.InputStream(
             samplerate=self._sample_rate,
             channels=1,
@@ -110,18 +128,22 @@ class WakeWordDetector:
                 await asyncio.sleep(0)
 
     async def _listen_keyword(self) -> None:
-        """Fallback: детекция через транскрипцию (постоянно слушает и ищет ключевое слово)."""
-        log.info(f"Keyword-режим — слушаю слова: {', '.join(self.wake_words)}...")
-        log.info("Совет: установите openwakeword для лучшей детекции")
+        """Keyword-режим: ищет wake word в транскрипции.
 
-        # В keyword-режиме подписываемся на события распознавания речи
-        # и ищем wake word в тексте
+        Подписывается на события SPEECH_RECOGNIZED от SpeechListener,
+        ищет wake word в распознанном тексте, и если нашёл — убирает
+        wake word из текста и передаёт команду дальше.
+        """
+        log.info(
+            f"Keyword-режим активирован — слушаю: {', '.join(self.wake_words)}\n"
+            "  Скажите «Джарвис, [команда]» — и ассистент выполнит команду."
+        )
+
         async def check_wake_word(event: Event) -> None:
             text = event.data.get("text", "").lower()
             for word in self.wake_words:
                 if word in text:
-                    log.info(f"Wake word найден в тексте: [bold green]{word}[/bold green]")
-                    # Убираем wake word из текста и передаём дальше
+                    log.info(f"Wake word найден: [bold green]{word}[/bold green] в «{text}»")
                     clean_text = text
                     for w in self.wake_words:
                         clean_text = clean_text.replace(w, "").strip()
