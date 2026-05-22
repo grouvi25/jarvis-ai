@@ -116,11 +116,17 @@ class SpeechListener:
         except (sr.UnknownValueError, sr.RequestError):
             return ""
 
+    async def _emit_status(self, status: str, detail: str = "") -> None:
+        await self.event_bus.emit(Event(
+            type=EventType.VOICE_STATUS,
+            data={"status": status, "detail": detail},
+            source="listener",
+        ))
+
     async def listen_continuous(self) -> None:
         """Непрерывное прослушивание микрофона с VAD."""
         self._load_model()
         self._running = True
-        log.info("Микрофон активен — слушаю...")
 
         silence_threshold = 0.01
         speech_threshold = 0.02
@@ -128,15 +134,43 @@ class SpeechListener:
         max_speech_duration = 30.0  # секунд
         silence_after_speech = 1.5  # секунд тишины = конец фразы
 
-        import sounddevice as sd
+        try:
+            import sounddevice as sd
+        except ImportError:
+            log.error(
+                "sounddevice не установлен — голосовой ввод недоступен. "
+                "Установите: pip install sounddevice"
+            )
+            await self._emit_status("error", "sounddevice не установлен")
+            return
 
-        stream = sd.InputStream(
-            samplerate=self._sample_rate,
-            channels=1,
-            dtype="float32",
-            blocksize=self._block_size,
-            callback=self._audio_callback,
+        try:
+            default_input = sd.query_devices(kind="input")
+            device_name = default_input.get("name", "?")
+            log.info(f"Микрофон: [bold]{device_name}[/bold]")
+        except Exception as e:
+            log.error(f"Микрофон не найден: {e}")
+            await self._emit_status("error", "Микрофон не найден")
+            return
+
+        try:
+            stream = sd.InputStream(
+                samplerate=self._sample_rate,
+                channels=1,
+                dtype="float32",
+                blocksize=self._block_size,
+                callback=self._audio_callback,
+            )
+        except Exception as e:
+            log.error(f"Не удалось открыть микрофон: {e}")
+            await self._emit_status("error", f"Микрофон: {e}")
+            return
+
+        log.info(
+            "[bold green]Микрофон активен[/bold green] — "
+            "слушаю... Скажите «Джарвис, [команда]»"
         )
+        await self._emit_status("listening", "Микрофон активен")
 
         with stream:
             speech_buffer: list[np.ndarray] = []
@@ -159,6 +193,8 @@ class SpeechListener:
                     speech_buffer = [data]
                     silence_counter = 0
                     speech_blocks = 1
+                    log.debug("Речь обнаружена...")
+                    await self._emit_status("hearing", "Слышу речь...")
                 elif is_speaking:
                     speech_buffer.append(data)
                     speech_blocks += 1
@@ -171,19 +207,37 @@ class SpeechListener:
                     speech_duration = speech_blocks / blocks_per_second
                     silence_duration = silence_counter / blocks_per_second
 
-                    speech_ended = (silence_duration >= silence_after_speech
-                                    or speech_duration >= max_speech_duration)
+                    speech_ended = (
+                        silence_duration >= silence_after_speech
+                        or speech_duration >= max_speech_duration
+                    )
                     if speech_ended:
                         is_speaking = False
                         if speech_duration >= min_speech_duration:
+                            log.info(
+                                f"Распознаю речь "
+                                f"({speech_duration:.1f}с)..."
+                            )
+                            await self._emit_status(
+                                "transcribing", "Распознаю речь...",
+                            )
                             audio = np.concatenate(speech_buffer)
                             text = await self._transcribe_buffer(audio)
                             if text:
+                                log.info(
+                                    f"Распознано: "
+                                    f"[bold]{text}[/bold]"
+                                )
                                 await self.event_bus.emit(Event(
                                     type=EventType.SPEECH_RECOGNIZED,
                                     data={"text": text},
                                     source="listener",
                                 ))
+                            else:
+                                log.debug("Речь не распознана")
+                            await self._emit_status(
+                                "listening", "Слушаю...",
+                            )
                         speech_buffer = []
                         silence_counter = 0
                         speech_blocks = 0

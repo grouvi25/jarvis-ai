@@ -135,9 +135,18 @@ class WakeWordDetector:
         wake word из текста и передаёт команду дальше.
         """
         log.info(
-            f"Keyword-режим активирован — слушаю: {', '.join(self.wake_words)}\n"
+            "[bold green]Wake word активирован[/bold green] — "
+            f"слушаю: {', '.join(self.wake_words)}\n"
             "  Скажите «Джарвис, [команда]» — и ассистент выполнит команду."
         )
+        await self.event_bus.emit(Event(
+            type=EventType.VOICE_STATUS,
+            data={
+                "status": "wake_word_ready",
+                "detail": f"Ожидаю: {', '.join(self.wake_words)}",
+            },
+            source="wake_word",
+        ))
 
         async def check_wake_word(event: Event) -> None:
             text = event.data.get("text", "").lower()

@@ -17,6 +17,7 @@ class EventType(Enum):
     SPEECH_RECOGNIZED = "speech_recognized"
     SPEECH_STARTED = "speech_started"
     SPEECH_FINISHED = "speech_finished"
+    VOICE_STATUS = "voice_status"
 
     # LLM события
     LLM_RESPONSE = "llm_response"
