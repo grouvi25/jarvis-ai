@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from jarvis.skills.contacts import ContactsSkill
 from jarvis.skills.files import FilesSkill
 from jarvis.skills.notes import NotesSkill
 from jarvis.skills.time_skill import TimeSkill
@@ -74,3 +75,75 @@ async def test_notes_skill_remember_recall(tmp_path: Path, monkeypatch: pytest.M
     assert "Заметка добавлена" in res
     res = await skill.execute(action="list_notes")
     assert "купить кофе" in res
+
+
+@pytest.mark.asyncio
+async def test_contacts_add_and_find_by_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import jarvis.skills.contacts as contacts_mod
+
+    monkeypatch.setattr(
+        contacts_mod, "CONTACTS_FILE", tmp_path / "contacts.json",
+    )
+    skill = ContactsSkill()
+    res = await skill.execute(
+        action="add", name="Маша",
+        telegram_id="@masha123", label="девушка",
+    )
+    assert "Контакт сохранён" in res
+
+    res = await skill.execute(action="find", name="Маша")
+    assert "Маша" in res
+    assert "девушка" in res
+
+
+@pytest.mark.asyncio
+async def test_contacts_find_by_label(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import jarvis.skills.contacts as contacts_mod
+
+    monkeypatch.setattr(
+        contacts_mod, "CONTACTS_FILE", tmp_path / "contacts.json",
+    )
+    skill = ContactsSkill()
+    await skill.execute(
+        action="add", name="Маша",
+        telegram_id="@masha123", label="девушка",
+    )
+
+    res = await skill.execute(action="find", label="девушка")
+    assert "Маша" in res
+    assert "девушка" in res
+
+
+@pytest.mark.asyncio
+async def test_contacts_list_and_delete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import jarvis.skills.contacts as contacts_mod
+
+    monkeypatch.setattr(
+        contacts_mod, "CONTACTS_FILE", tmp_path / "contacts.json",
+    )
+    skill = ContactsSkill()
+    await skill.execute(
+        action="add", name="Маша",
+        telegram_id="@masha123", label="девушка",
+    )
+    await skill.execute(
+        action="add", name="Петя",
+        telegram_id="@petya", label="друг",
+    )
+
+    res = await skill.execute(action="list")
+    assert "Маша" in res
+    assert "Петя" in res
+
+    res = await skill.execute(action="delete", name="Маша")
+    assert "удалён" in res
+
+    res = await skill.execute(action="list")
+    assert "Маша" not in res
+    assert "Петя" in res

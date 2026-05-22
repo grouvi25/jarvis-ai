@@ -31,6 +31,7 @@ SECRETS_FILE = CONFIG_DIR / "secrets.yaml"
 MEMORY_FILE = DATA_DIR / "memory.json"
 CONVERSATION_FILE = DATA_DIR / "conversation.json"
 NOTES_FILE = DATA_DIR / "notes.json"
+CONTACTS_FILE = DATA_DIR / "contacts.json"
 LOG_FILE = LOG_DIR / "jarvis.log"
 SCREENSHOT_DIR = DATA_DIR / "screenshots"
 
