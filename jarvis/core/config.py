@@ -48,6 +48,7 @@ class TTSConfig:
     engine: str = "edge-tts"
     edge_voice: str = "ru-RU-DmitryNeural"
     edge_rate: str = "+10%"
+    edge_pitch: str = "-5Hz"
     xtts_model: str = "tts_models/multilingual/multi-dataset/xtts_v2"
     xtts_speaker_wav: str = "models/jarvis_voice.wav"
     xtts_language: str = "ru"

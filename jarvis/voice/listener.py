@@ -9,7 +9,6 @@ import wave
 from typing import TYPE_CHECKING
 
 import numpy as np
-import sounddevice as sd
 
 from jarvis.core.event_bus import Event, EventBus, EventType
 from jarvis.utils.logger import log
@@ -56,7 +55,7 @@ class SpeechListener:
         indata: np.ndarray,
         frames: int,
         time_info: object,
-        status: sd.CallbackFlags,
+        status: object,
     ) -> None:
         """Callback для sounddevice — складывает аудио в очередь."""
         if status:
@@ -128,6 +127,8 @@ class SpeechListener:
         min_speech_duration = 0.5  # секунд
         max_speech_duration = 30.0  # секунд
         silence_after_speech = 1.5  # секунд тишины = конец фразы
+
+        import sounddevice as sd
 
         stream = sd.InputStream(
             samplerate=self._sample_rate,
