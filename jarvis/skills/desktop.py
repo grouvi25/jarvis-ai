@@ -126,29 +126,25 @@ class DesktopControlSkill(Skill):
         return out or "OK"
 
     async def _open_app(self, name: str) -> str:
-        loop = asyncio.get_event_loop()
         if plat.is_windows():
-            cmd: list[str] | str = ["cmd", "/c", "start", "", name]
-            shell = False
-        elif plat.is_macos():
-            cmd = ["open", "-a", name]
-            shell = False
+            return await self._open_app_windows(name)
+
+        loop = asyncio.get_event_loop()
+        if plat.is_macos():
+            cmd: list[str] = ["open", "-a", name]
         else:
-            # На Linux: пробуем как exec, потом xdg-open, потом gtk-launch
             if plat.has_command(name):
                 cmd = [name]
             elif plat.has_command("gtk-launch"):
                 cmd = ["gtk-launch", name]
             else:
                 cmd = ["xdg-open", name]
-            shell = False
 
         try:
             await loop.run_in_executor(
                 None,
                 lambda: subprocess.Popen(  # noqa: S603
                     cmd,
-                    shell=shell,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 ),
@@ -156,6 +152,102 @@ class DesktopControlSkill(Skill):
             return f"Запущено: {name}"
         except FileNotFoundError:
             return f"Не найдено: {name}"
+
+    # Алиасы популярных приложений на Windows.
+    # Каждое имя имеет список кандидатов; пробуем по порядку.
+    _WIN_ALIASES: dict[str, list[str]] = {
+        "telegram": ["Telegram.exe", "telegram"],
+        "телеграм": ["Telegram.exe", "telegram"],
+        "телега": ["Telegram.exe", "telegram"],
+        "edge": ["msedge.exe", "msedge", "microsoft-edge:"],
+        "microsoft edge": ["msedge.exe", "msedge", "microsoft-edge:"],
+        "эдж": ["msedge.exe", "msedge", "microsoft-edge:"],
+        "chrome": ["chrome.exe", "chrome"],
+        "google chrome": ["chrome.exe", "chrome"],
+        "хром": ["chrome.exe", "chrome"],
+        "firefox": ["firefox.exe", "firefox"],
+        "фаерфокс": ["firefox.exe", "firefox"],
+        "discord": ["Discord.exe", "discord"],
+        "дискорд": ["Discord.exe", "discord"],
+        "spotify": ["Spotify.exe", "spotify", "spotify:"],
+        "спотифай": ["Spotify.exe", "spotify"],
+        "steam": ["steam.exe", "steam", "steam://open/main"],
+        "стим": ["steam.exe", "steam"],
+        "vscode": ["code.cmd", "code", "code.exe"],
+        "vs code": ["code.cmd", "code"],
+        "код": ["code.cmd", "code"],
+        "блокнот": ["notepad.exe", "notepad"],
+        "notepad": ["notepad.exe", "notepad"],
+        "калькулятор": ["calc.exe", "calc"],
+        "calculator": ["calc.exe", "calc"],
+        "калк": ["calc.exe", "calc"],
+        "проводник": ["explorer.exe", "explorer"],
+        "explorer": ["explorer.exe", "explorer"],
+        "файлы": ["explorer.exe", "explorer"],
+        "терминал": ["wt.exe", "powershell.exe", "cmd.exe"],
+        "terminal": ["wt.exe", "powershell.exe", "cmd.exe"],
+        "powershell": ["powershell.exe", "pwsh.exe"],
+        "cmd": ["cmd.exe"],
+        "vlc": ["vlc.exe", "vlc"],
+        "obs": ["obs64.exe", "obs.exe", "obs"],
+        "paint": ["mspaint.exe"],
+        "пейнт": ["mspaint.exe"],
+        "word": ["winword.exe", "winword"],
+        "ворд": ["winword.exe", "winword"],
+        "excel": ["excel.exe", "excel"],
+        "эксель": ["excel.exe", "excel"],
+    }
+
+    async def _open_app_windows(self, name: str) -> str:
+        """Запуск приложения на Windows с несколькими стратегиями.
+
+        1. Алиасы (telegram → Telegram.exe, edge → msedge.exe, …).
+        2. PowerShell Start-Process — умеет PATH + App Paths registry + URI schemes.
+        3. Get-StartApps fuzzy search (UWP/Store/меню Пуск).
+        """
+        loop = asyncio.get_event_loop()
+        candidates = self._WIN_ALIASES.get(name.strip().lower(), [name])
+
+        errors: list[str] = []
+        for candidate in candidates:
+            try:
+                result = await loop.run_in_executor(
+                    None,
+                    lambda c=candidate: subprocess.run(  # noqa: S603
+                        [
+                            "powershell", "-NoProfile", "-WindowStyle", "Hidden",
+                            "-Command", f"Start-Process -FilePath '{c}'",
+                        ],
+                        capture_output=True, text=True, timeout=10,
+                    ),
+                )
+                if result.returncode == 0 and not (result.stderr or "").strip():
+                    return f"Запущено: {name}"
+                errors.append(f"{candidate}: {result.stderr.strip() or 'rc=' + str(result.returncode)}")
+            except Exception as e:
+                errors.append(f"{candidate}: {e}")
+
+        # Фоллбек: ищем в меню Пуск (UWP/Store/классические)
+        try:
+            ps = (
+                f"$app = Get-StartApps | Where-Object {{ $_.Name -like '*{name}*' }} "
+                "| Select-Object -First 1; "
+                "if ($app) { Start-Process ('shell:AppsFolder\\' + $app.AppID); "
+                "Write-Output $app.Name } else { exit 1 }"
+            )
+            result = await loop.run_in_executor(
+                None,
+                lambda: subprocess.run(  # noqa: S603
+                    ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                    capture_output=True, text=True, timeout=15,
+                ),
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return f"Запущено: {result.stdout.strip()}"
+        except Exception as e:
+            errors.append(f"Get-StartApps: {e}")
+
+        return f"Не удалось запустить '{name}'. Попробованные варианты: {'; '.join(errors[:3])}"
 
     async def _screenshot(self) -> str:
         ensure_dirs()
