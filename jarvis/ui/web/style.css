@@ -64,6 +64,18 @@ body {
 .pill-ok { color: var(--ok); border-color: var(--ok); }
 .pill-warn { color: var(--warn); border-color: var(--warn); }
 .pill-err { color: var(--err); border-color: var(--err); }
+.pill-voice { color: var(--text-dim); border-color: var(--border); }
+.pill-voice-listen { color: var(--ok); border-color: var(--ok); }
+.pill-voice-hear {
+    color: var(--accent); border-color: var(--accent);
+    animation: pulse-voice 0.8s ease-in-out infinite;
+}
+.pill-voice-think { color: var(--warn); border-color: var(--warn); }
+.pill-voice-err { color: var(--err); border-color: var(--err); }
+@keyframes pulse-voice {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
 
 .tabs { display: flex; gap: 4px; }
 .tab {

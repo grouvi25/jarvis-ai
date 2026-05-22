@@ -82,17 +82,22 @@ class JarvisApp:
         try:
             from jarvis.voice.listener import SpeechListener
             from jarvis.voice.wake_word import WakeWordDetector
-        except Exception as e:
-            log.info(f"Голосовой режим недоступен ({e})")
+        except ImportError as e:
+            log.warning(
+                f"Голосовой режим недоступен: {e}\n"
+                "  Установите: pip install jarvis-ai[voice]"
+            )
             return
 
+        log.info("[bold]Запуск голосового движка...[/bold]")
         listener = SpeechListener(self.config.stt, self.event_bus)
         wake = WakeWordDetector(self.config, self.event_bus)
 
         async def on_wake(event: Event) -> None:
             text = (event.data.get("remaining_text") or "").strip()
+            log.info(f"Wake word сработал! Команда: «{text or '(пусто)'}»")
             if not text:
-                await self.speaker.speak("Слушаю")
+                await self.speaker.speak("Слушаю, сэр")
                 return
             response = await self.brain.think(text)
             if self.config.voice_enabled:
@@ -110,7 +115,7 @@ class JarvisApp:
             wake.stop()
             raise
         except Exception as e:
-            log.warning(f"Voice loop остановлен: {e}")
+            log.error(f"Voice loop ошибка: {e}", exc_info=True)
 
     # ---------- tray callbacks ----------
 

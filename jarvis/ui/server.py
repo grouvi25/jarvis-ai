@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -86,6 +85,21 @@ def create_app(
             "type": "skill_result",
             "skill": e.data.get("skill"),
             "result": str(e.data.get("result", ""))[:500],
+        },
+    )
+    relay(
+        EventType.VOICE_STATUS,
+        lambda e: {
+            "type": "voice_status",
+            "status": e.data.get("status", ""),
+            "detail": e.data.get("detail", ""),
+        },
+    )
+    relay(
+        EventType.WAKE_WORD_DETECTED,
+        lambda e: {
+            "type": "wake_word",
+            "word": e.data.get("word", ""),
         },
     )
 

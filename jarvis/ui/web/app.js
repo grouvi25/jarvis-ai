@@ -6,6 +6,7 @@ const ui = {
     chatInput: document.getElementById("chat-input"),
     btnClear: document.getElementById("btn-clear"),
     statusPill: document.getElementById("status-pill"),
+    voicePill: document.getElementById("voice-pill"),
     memoryList: document.getElementById("memory-list"),
     memoryForm: document.getElementById("memory-form"),
     memoryInput: document.getElementById("memory-input"),
@@ -45,6 +46,30 @@ function setStatus(state, text) {
     );
 }
 
+function setVoiceStatus(status, detail) {
+    if (!ui.voicePill) return;
+    const labels = {
+        listening: "🎤 Слушаю",
+        hearing: "🎤 Слышу...",
+        transcribing: "🎤 Распознаю...",
+        wake_word_ready: "🎤 Ожидаю «Джарвис»",
+        error: "🎤 Ошибка",
+    };
+    ui.voicePill.textContent = labels[status] || ("🎤 " + (detail || status));
+    ui.voicePill.classList.remove(
+        "pill-voice-listen", "pill-voice-hear",
+        "pill-voice-think", "pill-voice-err"
+    );
+    if (status === "listening" || status === "wake_word_ready")
+        ui.voicePill.classList.add("pill-voice-listen");
+    else if (status === "hearing")
+        ui.voicePill.classList.add("pill-voice-hear");
+    else if (status === "transcribing")
+        ui.voicePill.classList.add("pill-voice-think");
+    else if (status === "error")
+        ui.voicePill.classList.add("pill-voice-err");
+}
+
 // ---------- WebSocket ----------
 let ws = null;
 let wsReconnectTimer = null;
@@ -79,6 +104,14 @@ function connectWS() {
                 break;
             case "skill_result":
                 addMessage("skill", `${data.skill} → ${data.result}`);
+                break;
+            case "voice_status":
+                setVoiceStatus(data.status, data.detail);
+                if (data.status === "error")
+                    addMessage("system", "🎤 " + (data.detail || "Ошибка микрофона"));
+                break;
+            case "wake_word":
+                addMessage("system", "🎤 Wake word: «" + data.word + "»");
                 break;
             case "error":
                 addMessage("system", "Ошибка: " + (data.error || "?"));
