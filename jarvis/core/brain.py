@@ -33,6 +33,8 @@ class Brain:
         self.client = AsyncOpenAI(
             base_url=llm.base_url or None,
             api_key=llm.api_key or "not-needed",
+            timeout=60.0,
+            max_retries=2,
         )
         self.model = llm.model
 
