@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import queue
+import re
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -13,6 +14,45 @@ from jarvis.utils.logger import log
 
 if TYPE_CHECKING:
     from jarvis.core.config import JarvisConfig
+
+# Частые ошибки распознавания «Джарвис» через Whisper
+_JARVIS_VARIANTS = re.compile(
+    r"(?:д?жарв[иі][сз]"  # джарвис, жарвис, джарвіс, жарвіз
+    r"|джарв[еа]с"         # джарвес, джарвас
+    r"|джар[иі]с"          # джарис, джаріс
+    r"|д\s*жарвис"         # д жарвис (пробел)
+    r"|jarvis"             # английское написание
+    r"|джарвес"            # ещё вариант
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _fuzzy_find_wake_word(
+    text: str, wake_words: list[str],
+) -> tuple[str, str] | None:
+    """Нечёткий поиск wake word в тексте.
+
+    Возвращает (найденное_слово, оставшийся_текст) или None.
+    """
+    text_lower = text.lower()
+
+    # 1. Точное совпадение
+    for word in wake_words:
+        if word in text_lower:
+            remaining = text_lower
+            for w in wake_words:
+                remaining = remaining.replace(w, "")
+            return word, remaining.strip(" ,.")
+
+    # 2. Regex для вариантов "Джарвис"
+    m = _JARVIS_VARIANTS.search(text_lower)
+    if m:
+        matched = m.group()
+        remaining = text_lower[:m.start()] + text_lower[m.end():]
+        return matched, remaining.strip(" ,.")
+
+    return None
 
 
 class WakeWordDetector:
@@ -149,21 +189,19 @@ class WakeWordDetector:
         ))
 
         async def check_wake_word(event: Event) -> None:
-            text = event.data.get("text", "").lower()
-            for word in self.wake_words:
-                if word in text:
-                    log.info(f"Wake word найден: [bold green]{word}[/bold green] в «{text}»")
-                    clean_text = text
-                    for w in self.wake_words:
-                        clean_text = clean_text.replace(w, "").strip()
-                    clean_text = clean_text.strip(" ,.")
-
-                    await self.event_bus.emit(Event(
-                        type=EventType.WAKE_WORD_DETECTED,
-                        data={"word": word, "remaining_text": clean_text},
-                        source="wake_word",
-                    ))
-                    break
+            text = event.data.get("text", "")
+            result = _fuzzy_find_wake_word(text, self.wake_words)
+            if result is not None:
+                matched, clean_text = result
+                log.info(
+                    f"Wake word найден: "
+                    f"[bold green]{matched}[/bold green] в «{text}»"
+                )
+                await self.event_bus.emit(Event(
+                    type=EventType.WAKE_WORD_DETECTED,
+                    data={"word": matched, "remaining_text": clean_text},
+                    source="wake_word",
+                ))
 
         self.event_bus.on(EventType.SPEECH_RECOGNIZED, check_wake_word)
 
